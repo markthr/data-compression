@@ -5,15 +5,26 @@
 
 const float PI = std::numbers::pi;
 
-// Demonstrate some basic assertions.
+/**
+ * Simple assertions to verify forward and inverse transform return wtihout error
+ */
 TEST(DiscreteFourierTest, BasicAssertions) {
+    // test template with float
     const int size = 8;
-    std::vector<float> input(size);
-    std::vector<std::complex<float>> output;
+    std::vector<float> input_float(size);
+    std::vector<std::complex<float>> output_float;
 
-    FFT<float, size> fft;
-    EXPECT_EQ(fft.transform(input, output), 0) << "Forward transform failed";
-    EXPECT_EQ(fft.inverse(output, input), 0) << "Inverse transform failed";
+    FFT<float, size> fft_float;
+    EXPECT_EQ(fft_float.transform(input_float, output_float), 0) << "Forward transform failed for float";
+    EXPECT_EQ(fft_float.inverse(output_float, input_float), 0) << "Inverse transform failed for float";
+
+    // test template with double
+    std::vector<double> input_double(size);
+    std::vector<std::complex<double>> output_double;
+
+    FFT<double, size> fft_double;
+    EXPECT_EQ(fft_double.transform(input_double, output_double), 0) << "Forward transform failed for double";
+    EXPECT_EQ(fft_double.inverse(output_double, input_double), 0) << "Inverse transform failed for double";
 }
 
 /**
@@ -25,7 +36,7 @@ TEST(DiscreteFourierTest, BasicTransforms) {
     std::vector<std::complex<float>> output;
 
     // compute FFT of constant signal
-    std::vector<float> input_1(size, 1);
+    const std::vector<float> input_1(size, 1);
     const std::vector<float> exp_mag_1 = {size, 0, 0, 0, 0, 0, 0, 0};
     const std::vector<float> exp_phase_1(size, 0);
 
@@ -50,7 +61,7 @@ TEST(DiscreteFourierTest, BasicTransforms) {
     }
 
     // compute FFT of a more complex signal
-    std::vector<float> input_3 = {0, 6, -1, 3, 3, 0, -5, 2};
+    const std::vector<float> input_3 = {0, 6, -1, 3, 3, 0, -5, 2};
     const std::vector<float> exp_mag_3 = {8, 8.9657558, 9.0553851, 6.6041823, 14, 6.6041823, 9.0553851, 8.9657558};
     const std::vector<float> exp_phase_3 = {0*PI, -0.4809757*PI, -0.035223287*PI, -0.95406458*PI, 1*PI, 0.95406458*PI, 0.035223287*PI, 0.4809757*PI};
 
@@ -59,5 +70,29 @@ TEST(DiscreteFourierTest, BasicTransforms) {
     for(int k = 0; k < size; k++) {
         EXPECT_FLOAT_EQ(std::abs(output[k]), exp_mag_3[k]) << "at index: " << k;
         EXPECT_FLOAT_EQ(std::arg(output[k]), exp_phase_3[k]) << "at index: " << k;
+    }
+}
+
+/**
+ * FFT tests of forward transform for larger input
+ */
+TEST(DiscreteFourierTest, LargeTransforms) {
+    const int size_1 = 16;
+    FFT<double, size_1> fft_16;
+    std::vector<std::complex<double>> output;
+
+    // compute 16-point FFT
+    const std::vector<double> input_1 = {0.19325677, 0.50802583, 0.43814404, 0.32752371, 0.95930142, 0.064225197, 0.3702718, 0.7806024, 0.92368416, 0.15440416,
+        0.36631957, 0.6990894, 0.65803902, 0.76735618, 0.5950245, 0.49130181};
+    const std::vector<double> exp_mag_1 = {8.29657, 0.64687173, 0.63673424, 1.3593968, 1.2559982, 1.5603724, 0.56979207, 1.1762005, 0.71151258, 1.1762005,
+        0.56979207, 1.5603724, 1.2559982, 1.3593968, 0.63673424, 0.64687173};
+    const std::vector<double> exp_phase_1 = {0*PI, 0.67293605*PI, 0.74740989*PI, -0.85557327*PI, 0.22128576*PI, -0.63866057*PI, 0.92545546*PI,
+        0.7052744*PI, 0*PI, -0.7052744*PI, -0.92545546*PI, 0.63866057*PI, -0.22128576*PI, 0.85557327*PI, -0.74740989*PI, -0.67293605*PI};
+    
+    EXPECT_FALSE(fft_16.transform(input_1, output));
+
+    for(int k = 0; k < size_1; k++) {
+        EXPECT_DOUBLE_EQ(std::abs(output[k]), exp_mag_1[k]) << "at index: " << k;
+        EXPECT_DOUBLE_EQ(std::arg(output[k]), exp_phase_1[k]) << "at index: " << k;
     }
 }
