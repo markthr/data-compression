@@ -48,7 +48,7 @@ print_mag(output)
 print_phase(output)
 
 ###############################################################
-# Largerd FFT test cases
+# Larger FFT test cases
 ###############################################################
 print("DiscreteFourierTest.LargeTransforms")
 
@@ -61,4 +61,19 @@ output = fft.fft(input)
 print_input(input)
 print_mag(output)
 print_phase(output)
+
+###############################################################
+# Identity tests: input -> FFT -> IFFT -> input 
+###############################################################
+print("DiscreteFourierTest.IdentityTransforms")
+
+# case 1
+print("Test Case 1")
+input = -1 + 2*rng.random(8)
+print_input(input)
+
+# case 2
+print("Test Case 2")
+input = -5 + 10*rng.random(16)
+print_input(input)
 

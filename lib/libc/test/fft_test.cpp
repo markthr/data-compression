@@ -3,7 +3,8 @@
 // TODO: is there a better way of handling this import?
 #include "../transforms/transforms.hpp"
 
-const float PI = std::numbers::pi;
+const double PI = std::numbers::pi;
+const double ERR = 1E-8f;
 
 /**
  * Simple assertions to verify forward and inverse transform return wtihout error
@@ -94,5 +95,39 @@ TEST(DiscreteFourierTest, LargeTransforms) {
     for(int k = 0; k < size_1; k++) {
         EXPECT_DOUBLE_EQ(std::abs(output[k]), exp_mag_1[k]) << "at index: " << k;
         EXPECT_DOUBLE_EQ(std::arg(output[k]), exp_phase_1[k]) << "at index: " << k;
+    }
+}
+
+/**
+ * FFT test for inverse of transform being equivalent to identity
+ */
+TEST(DiscreteFourierTest, IdentityTransforms) {
+    std::vector<std::complex<double>> transformed;
+    std::vector<double> output;
+
+    // test 8-point FFT
+    const int size_1 = 8;
+    FFT<double, size_1> fft_8;
+    const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902, 0.70266354, 0.78609125};
+
+    EXPECT_FALSE(fft_8.transform(input_1, transformed));
+    EXPECT_FALSE(fft_8.inverse(transformed, output));
+
+    for(int k = 0; k < size_1; k++) {
+        EXPECT_NEAR(input_1[k], output[k], ERR) << "at index: " << k;
+    }
+
+    
+
+    // test 16-point FFT
+    const int size_2 = 16;
+    FFT<double, size_2> fft_16;
+    const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
+
+    EXPECT_FALSE(fft_16.transform(input_2, transformed));
+    EXPECT_FALSE(fft_16.inverse(transformed, output));
+
+    for(int k = 0; k < size_2; k++) {
+        EXPECT_NEAR(input_2[k], output[k], ERR) << "at index: " << k;
     }
 }

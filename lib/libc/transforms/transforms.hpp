@@ -41,7 +41,7 @@ class FFT : Abstract_Transformer<T, std::complex<T>, n> {
         /**
          *  Radix-2, decimation in time
          */
-        void fft_step(int offset, int scale, const std::vector<T>& in, std::vector<std::complex<T>>& out);
+        void fft_step(int offset, int scale, const std::vector<std::complex<T>>& in, std::vector<std::complex<T>>& out);
         /**
          * Utility function for transfering input indices to output indices
          */

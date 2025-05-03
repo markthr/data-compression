@@ -53,12 +53,26 @@ FFT<T, n>::FFT() {
 template<std::floating_point T, int n>
 int  FFT<T, n>::transform(const std::vector<T>& in, std::vector<std::complex<T>>& out){
     out.resize(this->fft_size);
-    this->fft_step(0, 1, in, out);
+    this->fft_step(0, 1, std::vector<std::complex<T>>(in.begin(), in.end()), out);
     return 0;
 }
 
 template<std::floating_point T, int n>
 int  FFT<T, n>::inverse(const std::vector<std::complex<T>>& in, std::vector<T>& out){
+    std::vector<std::complex<T>> c_in(in.size());
+    out.resize(n);
+    std::vector<std::complex<T>> c_out(n);
+    T coeff = ((T) 1) / in.size();
+    for(int k = 0; k < std::ranges::ssize(in); k++) {
+        c_in[k] = coeff * std::conj(in[k]);
+    }
+    
+    this->fft_step(0, 1, c_in, c_out);
+
+    for(int k = 0; k < n; k++) {
+        out[k] = std::real(c_out[k]);
+    }
+
     return 0;
 }
 
@@ -74,10 +88,10 @@ int  FFT<T, n>::bit_reversal(int index) {
 
 
 template<std::floating_point T, int n>
-void FFT<T, n>::fft_step(int offset, int scale, const std::vector<T>& in, std::vector<std::complex<T>>& out) {
+void FFT<T, n>::fft_step(int offset, int scale, const std::vector<std::complex<T>>& in, std::vector<std::complex<T>>& out) {
     if(scale * 2 >= this->fft_size) { // size 2 FFT
-        T first = in[offset]; // first index has to be in range
-        T second = offset + scale < n ? in[offset + scale] : 0; // zero pad end of input
+        std::complex<T> first = in[offset]; // first index has to be in range
+        std::complex<T> second = offset + scale < n ? in[offset + scale] : 0; // zero pad end of input
         out[this->bit_reversal(offset)] = first + second;
         out[this->bit_reversal(offset + scale)] = first - second;
     }
