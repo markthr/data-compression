@@ -53,21 +53,21 @@ FFT<T, n>::FFT() {
 template<std::floating_point T, int n>
 int  FFT<T, n>::transform(const std::vector<T>& in, std::vector<std::complex<T>>& out){
     out.resize(this->fft_size);
-    this->fft_step(0, 1, std::vector<std::complex<T>>(in.begin(), in.end()), out);
+    this->complex_fft(std::vector<std::complex<T>>(in.begin(), in.end()), out);
     return 0;
 }
 
 template<std::floating_point T, int n>
 int  FFT<T, n>::inverse(const std::vector<std::complex<T>>& in, std::vector<T>& out){
-    std::vector<std::complex<T>> c_in(in.size());
+    std::vector<std::complex<T>> c_in(this->fft_size);
     out.resize(n);
-    std::vector<std::complex<T>> c_out(n);
-    T coeff = ((T) 1) / in.size();
-    for(int k = 0; k < std::ranges::ssize(in); k++) {
+    std::vector<std::complex<T>> c_out(this->fft_size);
+    T coeff = ((T) 1) / this->fft_size;
+    for(int k = 0; k < this->fft_size; k++) {
         c_in[k] = coeff * std::conj(in[k]);
     }
     
-    this->fft_step(0, 1, c_in, c_out);
+    this->complex_fft(c_in, c_out);
 
     for(int k = 0; k < n; k++) {
         out[k] = std::real(c_out[k]);
@@ -86,30 +86,43 @@ int  FFT<T, n>::bit_reversal(int index) {
     return reversed;
 }
 
-
 template<std::floating_point T, int n>
-void FFT<T, n>::fft_step(int offset, int scale, const std::vector<std::complex<T>>& in, std::vector<std::complex<T>>& out) {
-    if(scale * 2 >= this->fft_size) { // size 2 FFT
-        std::complex<T> first = in[offset]; // first index has to be in range
-        std::complex<T> second = offset + scale < n ? in[offset + scale] : 0; // zero pad end of input
-        out[this->bit_reversal(offset)] = first + second;
-        out[this->bit_reversal(offset + scale)] = first - second;
+void FFT<T, n>::complex_fft(const std::vector<std::complex<T>>& in, std::vector<std::complex<T>>& out) {
+    // initial output with size 2 FFTs
+    int step_size = 2; // size of the FFT being computed
+    int offset = this->fft_size/step_size; // offset between points input into 2-point FFTs
+
+    for(int k = 0; k < offset; k++) {
+        int l = k + offset;
+        // std::cout << "Butterfly (" << this->bit_reversal(k) << ", " << this->bit_reversal(l)  <<
+        //     ") for FFT of size: 2, W[0], step_size=" << step_size << '\n';
+
+        std::complex<T> first = in[k]; // first index has to be in range
+        std::complex<T> second = l < std::ssize(in) ? in[l] : 0; // zero pad end of input
+        out[this->bit_reversal(k)] = first + second;
+        out[this->bit_reversal(l)] = first - second;
     }
-    else {
-        this->fft_step(offset, scale * 2, in, out); // FFT of even indices
-        this->fft_step(offset + scale, scale * 2, in, out); // FFT of odd indices
 
-        // combine the results
-        int step_size = this->fft_size/scale; // the size of the FFT being computed in this recursion
-        for(int k = 0; k < step_size/2; k++) {
-            int index = offset * step_size + k;
-            std::complex<T> first = out[index];
-            std::complex<T> second = out[index + step_size/2] * this->W[k * scale];
-            out[index] = first + second;
-            out[index + step_size/2] = first - second;
+    // combine results
+    // loop over powers of 2
+    for(step_size = 4; step_size <= this->fft_size; step_size *=2) {
+        offset = step_size/2; // offset between points in butterflies that combine sub FFTs
+        int group_count = this->fft_size/step_size;
+        // loop over groups of transforms
+        for(int group_num = 0; group_num < group_count; group_num++) {
+            // loop over each element in a group of transforms
+            for(int index = 0; index < offset; index++) {
+                int k = 2 * group_num * offset + index; // skip over group, each group is double the size of the offset
+                // std::cout << "Butterfly (" << k << ", " << (k + offset) <<
+                //     ") for FFT of size: " << step_size << " with W[" << (index*group_count) << "], group_count=" <<
+                //     group_count << ", group_num=" << group_num << ", and index=" << index << "\n";
+                
+                std::complex<T> first = out[k];
+                std::complex<T> second = out[k + offset] * this->W[index * group_count];
 
-            // std::cout << "Butterfly of X_" << index << " and X_" << (index + step_size/2)
-            //     << " for FFT of size: " << step_size << " and W[" << (k*scale) << "]\n";
+                out[k] = first + second;
+                out[k + offset] = first - second;
+            }
         }
     }
 }

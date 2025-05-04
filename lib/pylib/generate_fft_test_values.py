@@ -62,6 +62,13 @@ print_input(input)
 print_mag(output)
 print_phase(output)
 
+print("Test Case 2")
+input = -20*rng.random(64)
+output = fft.fft(input)
+print_input(input)
+print_mag(output)
+print_phase(output)
+
 ###############################################################
 # Identity tests: input -> FFT -> IFFT -> input 
 ###############################################################
