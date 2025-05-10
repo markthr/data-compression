@@ -13,8 +13,8 @@ target_compile_features(test_compiler_flags INTERFACE cxx_std_20)
 add_subdirectory(transforms)
 add_subdirectory(test)
 
-add_executable(transforms_test transforms_test.cpp)
-target_link_libraries(transforms_test PUBLIC Transforms)
-target_include_directories(transforms_test PUBLIC "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/transforms")
+# add_executable(placeholder transforms_test.cpp)
+# target_link_libraries(placeholder PUBLIC Transforms)
+# target_include_directories(placeholder PUBLIC "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/transforms")
 
 

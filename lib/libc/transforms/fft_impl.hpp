@@ -127,4 +127,9 @@ void FFT<T, n>::complex_fft(const std::vector<std::complex<T>>& in, std::vector<
     }
 }
 
+template<std::floating_point T, int n>
+int  FFT<T, n>::size() {
+    return this->fft_size;
+}
+
 #endif

@@ -20,13 +20,6 @@ class Abstract_Transformer {
 };
 
 template<std::floating_point T, int n>
-class DCT_2 : Abstract_Transformer<T, T, n> {
-    public:
-        int transform(const std::vector<T>& in, std::vector<T>& out) override;
-        int inverse(const std::vector<T>& in, std::vector<T>& out) override;
-};
-
-template<std::floating_point T, int n>
 class FFT : Abstract_Transformer<T, std::complex<T>, n> {
     private:
         int fft_size; // the least multiple of 2 greater than n
@@ -37,6 +30,7 @@ class FFT : Abstract_Transformer<T, std::complex<T>, n> {
         FFT();
         int transform(const std::vector<T>& in, std::vector<std::complex<T>>& out) override;
         int inverse(const std::vector<std::complex<T>>& in, std::vector<T>& out) override;
+        int size();
     private:
         /**
          *  Radix-2, decimation in time
@@ -46,6 +40,19 @@ class FFT : Abstract_Transformer<T, std::complex<T>, n> {
          * Utility function for transfering input indices to output indices
          */
         int bit_reversal(int index);
+};
+
+template<std::floating_point T, int n>
+class DCT_2 : Abstract_Transformer<T, T, n> {
+    private:
+        FFT<T, 2*n> fft_2n;
+        std::vector<std::complex<T>> phase_factors;
+        T coeff;
+        const T beta_0 = 1/std::sqrt(2);
+    public:
+        DCT_2();
+        int transform(const std::vector<T>& in, std::vector<T>& out) override;
+        int inverse(const std::vector<T>& in, std::vector<T>& out) override;
 };
 
 #include "dct_impl.hpp"
