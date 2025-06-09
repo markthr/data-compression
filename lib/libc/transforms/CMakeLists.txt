@@ -1,4 +1,4 @@
-add_library(Transforms transforms.cpp)
+pybind11_add_module(Transforms transforms.cpp)
 
 target_include_directories(Transforms INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
