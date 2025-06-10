@@ -15,7 +15,7 @@ TEST(DiscreteCosineTest, BasicAssertions) {
     std::vector<float> input_float(size);
     std::vector<float> output_float;
 
-    DCT_2<float, size> dct2_float;
+    DCT_2<float> dct2_float(size);
     EXPECT_EQ(dct2_float.transform(input_float, output_float), 0) << "Forward transform failed for float";
     EXPECT_EQ(dct2_float.inverse(output_float, input_float), 0) << "Inverse transform failed for float";
 
@@ -23,7 +23,7 @@ TEST(DiscreteCosineTest, BasicAssertions) {
     std::vector<double> input_double(size);
     std::vector<double> output_double;
 
-    DCT_2<double, size> dct2_double;
+    DCT_2<double> dct2_double(size);
     EXPECT_EQ(dct2_double.transform(input_double, output_double), 0) << "Forward transform failed for double";
     EXPECT_EQ(dct2_double.inverse(output_double, input_double), 0) << "Inverse transform failed for double";
 }
@@ -41,7 +41,7 @@ TEST(DiscreteCosineTest, BasicTransforms) {
     const double ERR = 1E-5;
     const int size = 8;
 
-    DCT_2<float, size> dct;
+    DCT_2<float> dct(size);
     std::vector<float> output;
 
     // compute FFT of constant signal
@@ -86,7 +86,7 @@ TEST(DiscreteCosineTest, IdentityTransforms) {
 
     // test 8-point DCT_2
     const int size_1 = 8;
-    DCT_2<double, size_1> dct2_8;
+    DCT_2<double> dct2_8(size_1);
     const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902, 0.70266354, 0.78609125};
 
     EXPECT_FALSE(dct2_8.transform(input_1, transformed));
@@ -100,7 +100,7 @@ TEST(DiscreteCosineTest, IdentityTransforms) {
 
     // test 16-point DCT_2
     const int size_2 = 16;
-    DCT_2<double, size_2> dct2_16;
+    DCT_2<double> dct2_16(size_2);
     const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
 
     EXPECT_FALSE(dct2_16.transform(input_2, transformed));

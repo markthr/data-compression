@@ -1,0 +1,40 @@
+#ifndef __ABSTRACT_TRANFORMER_IMPL_H__
+#define __ABSTRACT_TRANFORMER_IMPL_H__
+
+#include "transforms.hpp"
+
+template<std::floating_point T, typename U>
+unsigned int Abstract_Transformer<T, U>::radix_2_size(unsigned int n) {
+    // currently only support radix-2 FFT
+    // increase FFT size to minimum power of 2 greater than or equal to the input size n
+    if(n < 2) {
+        // TODO: determine a satisfying way to reject values of n that are less than 1.
+        n = 2;
+    }
+    else {
+        // over optimized way to find the smallest power of 2 greater than n
+        // works by making all bits smaller than the MSB 1 which yields a number
+        // of the form 2^n - 1, add 1 and get a power of 2.
+        n = n - 1;
+        n |= n >> 1;
+        n |= n >> 2;
+        n |= n >> 4;
+        n |= n >> 8;
+        n |= n >> 16;
+        n++;
+    }
+
+    return n;
+}
+
+template<std::floating_point T, typename U>
+int Abstract_Transformer<T, U>::bit_reversal(int bits, int num_bits) {
+    int reversed = 0;
+    for(int k = 0; k < num_bits; k++) {
+        reversed = (reversed << 1) + (bits & 1); // shift in each LSB to output
+        bits >>= 1; // shift out each LSB from input
+    }
+    return reversed;
+}
+
+#endif

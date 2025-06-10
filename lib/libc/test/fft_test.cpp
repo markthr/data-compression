@@ -15,7 +15,7 @@ TEST(DiscreteFourierTest, BasicAssertions) {
     std::vector<float> input_float(size);
     std::vector<std::complex<float>> output_float;
 
-    FFT<float, size> fft_float;
+    FFT<float> fft_float (size);
     EXPECT_EQ(fft_float.transform(input_float, output_float), 0) << "Forward transform failed for float";
     EXPECT_EQ(fft_float.inverse(output_float, input_float), 0) << "Inverse transform failed for float";
 
@@ -23,7 +23,7 @@ TEST(DiscreteFourierTest, BasicAssertions) {
     std::vector<double> input_double(size);
     std::vector<std::complex<double>> output_double;
 
-    FFT<double, size> fft_double;
+    FFT<double> fft_double (size);
     EXPECT_EQ(fft_double.transform(input_double, output_double), 0) << "Forward transform failed for double";
     EXPECT_EQ(fft_double.inverse(output_double, input_double), 0) << "Inverse transform failed for double";
 }
@@ -33,7 +33,7 @@ TEST(DiscreteFourierTest, BasicAssertions) {
  */
 TEST(DiscreteFourierTest, BasicTransforms) {
     const int size = 8;
-    FFT<float, size> fft;
+    FFT<float> fft (size);
     std::vector<std::complex<float>> output;
 
     // compute FFT of constant signal
@@ -80,7 +80,7 @@ TEST(DiscreteFourierTest, BasicTransforms) {
 TEST(DiscreteFourierTest, LargeTransforms) {
     // compute 16-point FFT
     const int size_1 = 16;
-    FFT<double, size_1> fft_16;
+    FFT<double> fft_16(size_1);
     std::vector<std::complex<double>> output_1;
 
     const std::vector<double> input_1 = {0.19325677, 0.50802583, 0.43814404, 0.32752371, 0.95930142, 0.064225197, 0.3702718, 0.7806024, 0.92368416, 0.15440416,
@@ -99,7 +99,7 @@ TEST(DiscreteFourierTest, LargeTransforms) {
 
     // compute 64-point FFT
     const int size_2 = 64;
-    FFT<float, size_2> fft_64;
+    FFT<float> fft_64(size_2);
     std::vector<std::complex<float>> output_2;
     const std::vector<float> input_2 = {-3.2265482, -10.410971, -1.6029436, -2.3191998, -12.83878, -9.523311, -17.026635, -17.860913, -8.3971328, -1.7158779,
         -19.456333, -17.310326, -14.54653,-11.036449, -6.8549252, -9.1721527, -16.245687, -0.21167737, -13.692694, -9.4197281, -4.9385522, -18.57603,
@@ -142,7 +142,7 @@ TEST(DiscreteFourierTest, IdentityTransforms) {
 
     // test 8-point FFT
     const int size_1 = 8;
-    FFT<double, size_1> fft_8;
+    FFT<double> fft_8(size_1);
     const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902, 0.70266354, 0.78609125};
 
     EXPECT_FALSE(fft_8.transform(input_1, transformed));
@@ -156,7 +156,7 @@ TEST(DiscreteFourierTest, IdentityTransforms) {
 
     // test 16-point FFT
     const int size_2 = 16;
-    FFT<double, size_2> fft_16;
+    FFT<double> fft_16(size_2);
     const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
 
     EXPECT_FALSE(fft_16.transform(input_2, transformed));
@@ -176,7 +176,7 @@ TEST(DiscreteFourierTest, ZeroPadding) {
 
     // test 6-point FFT
     const int size_1 = 6;
-    FFT<double, size_1> fft_6;
+    FFT<double> fft_6(size_1);
     const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902};
 
     EXPECT_FALSE(fft_6.transform(input_1, transformed));
@@ -190,7 +190,7 @@ TEST(DiscreteFourierTest, ZeroPadding) {
 
     // test 17-point FFT
     const int size_2 = 17;
-    FFT<double, size_2> fft_17;
+    FFT<double> fft_17(size_2);
     const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, 0, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
 
     EXPECT_FALSE(fft_17.transform(input_2, transformed));
