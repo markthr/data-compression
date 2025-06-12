@@ -13,19 +13,24 @@ TEST(DiscreteFourierTest, BasicAssertions) {
     // test template with float
     const int size = 8;
     std::vector<float> input_float(size);
-    std::vector<std::complex<float>> output_float;
+    std::vector<std::complex<float>> output_float(size);
 
-    FFT<float> fft_float (size);
+    FFT<float> fft_float(size);
     EXPECT_EQ(fft_float.transform(input_float, output_float), 0) << "Forward transform failed for float";
     EXPECT_EQ(fft_float.inverse(output_float, input_float), 0) << "Inverse transform failed for float";
 
     // test template with double
     std::vector<double> input_double(size);
-    std::vector<std::complex<double>> output_double;
+    std::vector<std::complex<double>> output_double(size);
 
-    FFT<double> fft_double (size);
+    FFT<double> fft_double(size);
     EXPECT_EQ(fft_double.transform(input_double, output_double), 0) << "Forward transform failed for double";
     EXPECT_EQ(fft_double.inverse(output_double, input_double), 0) << "Inverse transform failed for double";
+
+    std::vector<std::complex<double>> output_double_2 = fft_double.transform(input_double);
+    EXPECT_EQ(output_double_2.size(), size) << "Vector return for forward transform failed";
+    std::vector<double> input_double_2 = fft_double.inverse(output_double_2);
+    EXPECT_EQ(input_double_2.size(), size) << "Vector return for inverse transform failed";
 }
 
 /**
@@ -33,15 +38,14 @@ TEST(DiscreteFourierTest, BasicAssertions) {
  */
 TEST(DiscreteFourierTest, BasicTransforms) {
     const int size = 8;
-    FFT<float> fft (size);
-    std::vector<std::complex<float>> output;
+    FFT<float> fft(size);
 
     // compute FFT of constant signal
     const std::vector<float> input_1(size, 1);
     const std::vector<float> exp_mag_1 = {size, 0, 0, 0, 0, 0, 0, 0};
     const std::vector<float> exp_phase_1(size, 0);
 
-    EXPECT_FALSE(fft.transform(input_1, output));
+    std::vector<std::complex<float>> output = fft.transform(input_1);
 
     for(int k = 0; k < size; k++) {
         EXPECT_NEAR(std::abs(output[k]), exp_mag_1[k], ERR) << "at index: " << k;
@@ -81,7 +85,7 @@ TEST(DiscreteFourierTest, LargeTransforms) {
     // compute 16-point FFT
     const int size_1 = 16;
     FFT<double> fft_16(size_1);
-    std::vector<std::complex<double>> output_1;
+    std::vector<std::complex<double>> output_1(size_1);
 
     const std::vector<double> input_1 = {0.19325677, 0.50802583, 0.43814404, 0.32752371, 0.95930142, 0.064225197, 0.3702718, 0.7806024, 0.92368416, 0.15440416,
         0.36631957, 0.6990894, 0.65803902, 0.76735618, 0.5950245, 0.49130181};
@@ -100,7 +104,7 @@ TEST(DiscreteFourierTest, LargeTransforms) {
     // compute 64-point FFT
     const int size_2 = 64;
     FFT<float> fft_64(size_2);
-    std::vector<std::complex<float>> output_2;
+    std::vector<std::complex<float>> output_2(size_2);
     const std::vector<float> input_2 = {-3.2265482, -10.410971, -1.6029436, -2.3191998, -12.83878, -9.523311, -17.026635, -17.860913, -8.3971328, -1.7158779,
         -19.456333, -17.310326, -14.54653,-11.036449, -6.8549252, -9.1721527, -16.245687, -0.21167737, -13.692694, -9.4197281, -4.9385522, -18.57603,
         -13.649794, -10.015527, -17.539106, -11.495736, -7.9912412, -4.669628, -9.6095481, -18.020386, -7.670451, -10.762271, -7.6599028, -8.6756561,
@@ -137,16 +141,13 @@ TEST(DiscreteFourierTest, LargeTransforms) {
  * FFT test for inverse of transform being equivalent to identity
  */
 TEST(DiscreteFourierTest, IdentityTransforms) {
-    std::vector<std::complex<double>> transformed;
-    std::vector<double> output;
-
     // test 8-point FFT
     const int size_1 = 8;
     FFT<double> fft_8(size_1);
     const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902, 0.70266354, 0.78609125};
 
-    EXPECT_FALSE(fft_8.transform(input_1, transformed));
-    EXPECT_FALSE(fft_8.inverse(transformed, output));
+    std::vector<std::complex<double>> transformed = fft_8.transform(input_1);
+    std::vector<double> output = fft_8.inverse(transformed);
 
     for(int k = 0; k < size_1; k++) {
         EXPECT_NEAR(input_1[k], output[k], ERR) << "at index: " << k;
@@ -159,8 +160,8 @@ TEST(DiscreteFourierTest, IdentityTransforms) {
     FFT<double> fft_16(size_2);
     const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
 
-    EXPECT_FALSE(fft_16.transform(input_2, transformed));
-    EXPECT_FALSE(fft_16.inverse(transformed, output));
+    transformed = fft_16.transform(input_2);
+    output = fft_16.inverse(transformed);
 
     for(int k = 0; k < size_2; k++) {
         EXPECT_NEAR(input_2[k], output[k], ERR) << "at index: " << k;
@@ -171,32 +172,44 @@ TEST(DiscreteFourierTest, IdentityTransforms) {
  * Forward and inverse FFT test for lengths that are not a power of 2
  */
 TEST(DiscreteFourierTest, ZeroPadding) {
-    std::vector<std::complex<double>> transformed;
-    std::vector<double> output;
-
     // test 6-point FFT
     const int size_1 = 6;
+    const int eff_size_1 = 8;
+    std::vector<std::complex<double>> transformed(eff_size_1);
+    std::vector<double> output(eff_size_1);
+
     FFT<double> fft_6(size_1);
     const std::vector<double> input_1 = {-0.67734518, 0.041097089, -0.83970564, -0.76808002, 0.28387797, -0.047668902};
 
+    EXPECT_EQ(fft_6.input_size, eff_size_1);
     EXPECT_FALSE(fft_6.transform(input_1, transformed));
     EXPECT_FALSE(fft_6.inverse(transformed, output));
 
     for(int k = 0; k < size_1; k++) {
         EXPECT_NEAR(input_1[k], output[k], ERR) << "at index: " << k;
     }
+    for(int k = size_1; k < eff_size_1; k++) {
+        EXPECT_NEAR(0, output[k], ERR) << "at index: " << k;
+    }
 
     
 
     // test 17-point FFT
     const int size_2 = 17;
+    const int eff_size_2 = 32;
     FFT<double> fft_17(size_2);
     const std::vector<double> input_2 = {-0.80143361, -4.1420611, 4.7281667, 3.655163, 2.2732652, 0.51822452, -1.5725374, 0, -0.41392366, 3.1228435, -4.8941613, 1.8463468, -0.29013594, -2.5307239, 4.2880149, 1.8248971, 0.0077635051};
+    transformed.resize(eff_size_2);
+    output.resize(eff_size_2);
 
     EXPECT_FALSE(fft_17.transform(input_2, transformed));
     EXPECT_FALSE(fft_17.inverse(transformed, output));
 
     for(int k = 0; k < size_2; k++) {
         EXPECT_NEAR(input_2[k], output[k], ERR) << "at index: " << k;
+    }
+
+    for(int k = size_2; k < eff_size_2; k++) {
+        EXPECT_NEAR(0, output[k], ERR) << "at index: " << k;
     }
 }

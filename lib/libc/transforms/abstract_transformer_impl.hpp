@@ -4,7 +4,30 @@
 #include "transforms.hpp"
 
 template<std::floating_point T, typename U>
-unsigned int Abstract_Transformer<T, U>::radix_2_size(unsigned int n) {
+Abstract_Transformer<T, U>::Abstract_Transformer(int input_size, int output_size)
+        : input_size(input_size), output_size(output_size) {}
+
+template<std::floating_point T, typename U>
+Abstract_Transformer<T, U>::Abstract_Transformer(int size)
+        : Abstract_Transformer(size, size) {}
+
+template<std::floating_point T, typename U>
+std::vector<U> Abstract_Transformer<T, U>::transform(std::span<const T> in) {
+    std::vector<U> result(this->output_size);
+    this->transform(in, result);
+    return result;
+}
+
+template<std::floating_point T, typename U>
+std::vector<T> Abstract_Transformer<T, U>::inverse(std::span<const U> in) {
+    std::vector<T> result(this->input_size);
+    this->inverse(in, result);
+    return result;
+}
+
+
+template<std::floating_point T, typename U>
+int Abstract_Transformer<T, U>::radix_2_size(int n) {
     // currently only support radix-2 FFT
     // increase FFT size to minimum power of 2 greater than or equal to the input size n
     if(n < 2) {
