@@ -9,6 +9,7 @@ enable_testing()
 add_executable(transforms_test
     fft_test.cpp
     dct_test.cpp
+    ycbcr_test.cpp
 )
 target_link_libraries(transforms_test
     GTest::gtest_main

@@ -11,7 +11,7 @@
  * Abstract type for fixed size invertible transforms that convert a floating point sequence
  * of up to length n to some domain specified by U
  */
-template<std::floating_point T, typename U>
+template<std::floating_point T, typename U, template<typename> class Container = std::span>
 class Abstract_Transformer {
     public:
         Abstract_Transformer(int input_size, int output_size);
@@ -22,11 +22,11 @@ class Abstract_Transformer {
         /**
          *  Return 0 if successful, -1 otherwise
          */
-        virtual int transform(std::span<const T> in, std::span<U> out) = 0;
-        virtual int inverse(std::span<const U> in, std::span<T> out) = 0;
+        virtual int transform(Container<const T> in, Container<U> out) = 0;
+        virtual int inverse(Container<const U> in, Container<T> out) = 0;
 
-        std::vector<U> transform(std::span<const T> in);
-        std::vector<T> inverse(std::span<const U> in);
+        std::vector<U> transform(Container<const T> in);
+        std::vector<T> inverse(Container<const U> in);
     
     // helper methods, a new copy is made for every parameterization of the template
     // perhaps it could eventually be worthwhile to make static versions that exist outside of templates
@@ -41,6 +41,7 @@ class Abstract_Transformer {
          */
         static int bit_reversal(int bits, int num_bits);
 };
+
 
 template<std::floating_point T>
 class FFT : public Abstract_Transformer<T, std::complex<T>> {

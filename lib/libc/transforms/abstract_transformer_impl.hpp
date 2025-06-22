@@ -3,31 +3,31 @@
 
 #include "transforms.hpp"
 
-template<std::floating_point T, typename U>
-Abstract_Transformer<T, U>::Abstract_Transformer(int input_size, int output_size)
+template<std::floating_point T, typename U, template<typename> class Container>
+Abstract_Transformer<T, U, Container>::Abstract_Transformer(int input_size, int output_size)
         : input_size(input_size), output_size(output_size) {}
 
-template<std::floating_point T, typename U>
-Abstract_Transformer<T, U>::Abstract_Transformer(int size)
+template<std::floating_point T, typename U, template<typename> class Container>
+Abstract_Transformer<T, U, Container>::Abstract_Transformer(int size)
         : Abstract_Transformer(size, size) {}
 
-template<std::floating_point T, typename U>
-std::vector<U> Abstract_Transformer<T, U>::transform(std::span<const T> in) {
+template<std::floating_point T, typename U, template<typename> class Container>
+std::vector<U> Abstract_Transformer<T, U, Container>::transform(Container<const T> in) {
     std::vector<U> result(this->output_size);
     this->transform(in, result);
     return result;
 }
 
-template<std::floating_point T, typename U>
-std::vector<T> Abstract_Transformer<T, U>::inverse(std::span<const U> in) {
+template<std::floating_point T, typename U, template<typename> class Container>
+std::vector<T> Abstract_Transformer<T, U, Container>::inverse(Container<const U> in) {
     std::vector<T> result(this->input_size);
     this->inverse(in, result);
     return result;
 }
 
 
-template<std::floating_point T, typename U>
-int Abstract_Transformer<T, U>::radix_2_size(int n) {
+template<std::floating_point T, typename U, template<typename> class Container>
+int Abstract_Transformer<T, U, Container>::radix_2_size(int n) {
     // currently only support radix-2 FFT
     // increase FFT size to minimum power of 2 greater than or equal to the input size n
     if(n < 2) {
@@ -50,8 +50,8 @@ int Abstract_Transformer<T, U>::radix_2_size(int n) {
     return n;
 }
 
-template<std::floating_point T, typename U>
-int Abstract_Transformer<T, U>::bit_reversal(int bits, int num_bits) {
+template<std::floating_point T, typename U, template<typename> class Container>
+int Abstract_Transformer<T, U, Container>::bit_reversal(int bits, int num_bits) {
     int reversed = 0;
     for(int k = 0; k < num_bits; k++) {
         reversed = (reversed << 1) + (bits & 1); // shift in each LSB to output
