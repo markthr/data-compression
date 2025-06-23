@@ -18,4 +18,11 @@ TEST(YCbCrTest, TransformMatrices) {
     for(int k = 0; k < size; k++) {
         EXPECT_NEAR(exp_forward[k], ytr.transform_matrix.index(k), ERR) << "Coeffs not equal at index: " << k;
     }
+
+    auto identity = mat::multiply(ytr.inverse_matrix, ytr.transform_matrix);
+    std::array<float, size> exp_identity  = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+    for(int k = 0; k < size; k++) {
+        EXPECT_NEAR(exp_forward[k], ytr.transform_matrix.index(k), ERR) << "Coeffs not equal at index: " << k;
+    }
 }

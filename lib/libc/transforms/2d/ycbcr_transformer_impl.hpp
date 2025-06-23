@@ -60,19 +60,19 @@ void YCbCr_Transformer<T>::compute_forward_transform(){
 template<typename T>
 void YCbCr_Transformer<T>::compute_inverse_transform(){
     // First channel: Y
-    this->inverse_transform_data[0] = this->k_r;
-    this->inverse_transform_data[1] = this->k_g;
-    this->inverse_transform_data[2] = this->k_b;
+    this->inverse_transform_data[0] = 1;
+    this->inverse_transform_data[1] = 0;
+    this->inverse_transform_data[2] = 2 - 2*this->k_r;
     
     // Second channel: C_B
-    this->inverse_transform_data[3] = -0.5 * this->k_r/(1 - this->k_b);
-    this->inverse_transform_data[4] = -0.5 * this->k_g/(1 - this->k_b);
-    this->inverse_transform_data[5] = 0.5;
+    this->inverse_transform_data[3] = 1;
+    this->inverse_transform_data[4] = -this->k_b/this->k_g * (2 - 2*this->k_b);
+    this->inverse_transform_data[5] = -this->k_r/this->k_g * (2 - 2*this->k_r);
 
     // Third channel: C_R
-    this->inverse_transform_data[6] = 0.5;
-    this->inverse_transform_data[7] = -0.5 * this->k_g/(1 - this->k_r);
-    this->inverse_transform_data[8] = -0.5 * this->k_b/(1 - this->k_r);
+    this->inverse_transform_data[6] = 1;
+    this->inverse_transform_data[7] = 2 - 2*this->k_b;
+    this->inverse_transform_data[8] = 0;
 }
 
 #endif

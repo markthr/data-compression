@@ -144,7 +144,9 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
         void compute_inverse_transform();
 };
 
+
 #include "multichannel_matrix_impl.hpp"
 #include "ycbcr_transformer_impl.hpp"
+#include "matrix_operations_impl.hpp"
 
 #endif
