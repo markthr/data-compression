@@ -43,9 +43,14 @@ class Multichannel_Matrix {
 
         Multichannel_Matrix(std::span<T, Extent> data, int m, int n, Order order = Order::ROW_MAJOR);
 
-        // need a constructor that will match the default constructor so a variable can be declared before assignment
-        // Such functionality is very useful for a view object
-        Multichannel_Matrix() : Multichannel_Matrix({}, 0, 0) {}
+        /**
+         * Adding an empty constructor for dynamic extent views without full template specialization
+         * Perhaps there is a way to avoid this with CRTP, but CRTP seems like it'd be overkill
+         */
+        Multichannel_Matrix() :Multichannel_Matrix({}, 0, 0){
+            // allow dynamic extent matrix views to be trivially constructable.
+            static_assert(Extent == std::dynamic_extent, "Only dynamic extent matrices are trivially constructable");
+        }
 
         // TODO: is there a better name for this operator?
         T& index(int i, int j, int k);
@@ -55,6 +60,8 @@ class Multichannel_Matrix {
 
         Multichannel_Matrix<T, 1> channel(int k);
 };
+
+
 
 // template<typename T>
 // class Multichannel_Matrix<T, 1> {
@@ -109,8 +116,8 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
         const float k_r;
         const float k_g;
         const float k_b;
-        Multichannel_Matrix<T, 1> transform_matrix;
-
+        Multichannel_Matrix<T, 1, 9> transform_matrix;
+        Multichannel_Matrix<T, 1, 9> inverse_matrix;
 
         /**
          * Default values for k_b and k_r are taken from ITU-R BT.601
@@ -126,7 +133,15 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
         int transform(Image_View<const T> in, Image_View<T> out) override;
         int inverse(Image_View<const T> in, Image_View<T> out) override {return -1;}
 
-        std::array<T, 9> get_forward_transform(float k_r, float k_g, float k_b);
+        /**
+         * Use the current values for k_r, k_g, and k_b to compute and set forward transform matrix
+         */
+        void compute_forward_transform();
+
+        /**
+         * Use the current values for k_r, k_g, and k_b to compute and set forward inverse matrix
+         */
+        void compute_inverse_transform();
 };
 
 #include "multichannel_matrix_impl.hpp"

@@ -60,4 +60,5 @@ Multichannel_Matrix<T, Channels, Extent>::Strides Multichannel_Matrix<T, Channel
 
     return strides;
 }
+
 #endif

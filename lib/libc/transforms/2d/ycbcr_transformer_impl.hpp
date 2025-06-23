@@ -7,11 +7,13 @@
 template<typename T>
 YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
         : Abstract_Image_Transformer<T, T>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
-        forward_transform_data(get_forward_transform(k_r, 1 - k_b - k_r, k_b)){
+        transform_matrix(std::span(this->forward_transform_data), 3, 3),
+        inverse_matrix(std::span(this->inverse_transform_data), 3, 3) {
     
-    std::span<T> dspan(this->forward_transform_data.data(), 9);
-    this->transform_matrix = Multichannel_Matrix<T, 1>(dspan, 3, 3);
-    // code go here 
+    // the matrices are views on the underlying data so can initialize data after creating the matrices
+    // need to create the matrices first because static extent spans cannot point at nothing
+    this->compute_forward_transform();
+    this->compute_inverse_transform();
 }
 
 
@@ -38,21 +40,39 @@ int YCbCr_Transformer<T>::transform(Image_View<const T> in, Image_View<T> out) {
 }
 
 template<typename T>
-std::array<T, 9> YCbCr_Transformer<T>::get_forward_transform(float k_r, float k_g, float k_b){
+void YCbCr_Transformer<T>::compute_forward_transform(){
     // First channel: Y
-    std::array<T, 9> forward_transform = {k_r, k_g, k_b};
+    this->forward_transform_data[0] = this->k_r;
+    this->forward_transform_data[1] = this->k_g;
+    this->forward_transform_data[2] = this->k_b;
     
     // Second channel: C_B
-    forward_transform[3] = -0.5 * k_r/(1 - k_b);
-    forward_transform[4] = -0.5 * k_g/(1 - k_b);
-    forward_transform[5] = 0.5;
+    this->forward_transform_data[3] = -0.5 * this->k_r/(1 - this->k_b);
+    this->forward_transform_data[4] = -0.5 * this->k_g/(1 - this->k_b);
+    this->forward_transform_data[5] = 0.5;
 
     // Third channel: C_R
-    forward_transform[6] = 0.5;
-    forward_transform[7] = -0.5 * k_g/(1 - k_r);
-    forward_transform[8] = -0.5 * k_b/(1 - k_r);
+    this->forward_transform_data[6] = 0.5;
+    this->forward_transform_data[7] = -0.5 * this->k_g/(1 - this->k_r);
+    this->forward_transform_data[8] = -0.5 * this->k_b/(1 - this->k_r);
+}
 
-    return forward_transform;
+template<typename T>
+void YCbCr_Transformer<T>::compute_inverse_transform(){
+    // First channel: Y
+    this->inverse_transform_data[0] = this->k_r;
+    this->inverse_transform_data[1] = this->k_g;
+    this->inverse_transform_data[2] = this->k_b;
+    
+    // Second channel: C_B
+    this->inverse_transform_data[3] = -0.5 * this->k_r/(1 - this->k_b);
+    this->inverse_transform_data[4] = -0.5 * this->k_g/(1 - this->k_b);
+    this->inverse_transform_data[5] = 0.5;
+
+    // Third channel: C_R
+    this->inverse_transform_data[6] = 0.5;
+    this->inverse_transform_data[7] = -0.5 * this->k_g/(1 - this->k_r);
+    this->inverse_transform_data[8] = -0.5 * this->k_b/(1 - this->k_r);
 }
 
 #endif

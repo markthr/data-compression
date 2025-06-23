@@ -1,14 +1,21 @@
 #include <gtest/gtest.h>
+#include <array>
 
 // TODO: is there a better way of handling this import?
 #include "../transforms/2d/2d_transforms.hpp"
 
 /**
- * Simple assertions to verify forward and inverse transform return wtihout error
+ * Simple assertions to verify that transform matrices are set correctly
  */
 TEST(YCbCrTest, TransformMatrices) {
+    const float ERR = 1e-6;
+    const int size = 9;
     Shape shape = {32, 32};
-    YCbCr_Transformer<double> ytr(shape);
+    YCbCr_Transformer<double> ytr(shape, 0.114, 0.299);
 
-    EXPECT_EQ(ytr.transform_matrix.index(0, 0, 0), ytr.k_r) << "Coeffs not equal";
+    std::array<float, size> exp_forward  = {0.299, 0.587, 0.114, -0.168736, -0.331264, 0.5, 0.5, -0.418688, -0.081312};
+
+    for(int k = 0; k < size; k++) {
+        EXPECT_NEAR(exp_forward[k], ytr.transform_matrix.index(k), ERR) << "Coeffs not equal at index: " << k;
+    }
 }
