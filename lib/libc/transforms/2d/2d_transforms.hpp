@@ -10,23 +10,89 @@ struct Shape {
     int n; // n=width=# of cols
 };
 
+enum class Dimension {
+    COLUMN,
+    ROW,
+    CHANNEL
+};
+
+struct Order {
+    Dimension first;
+    Dimension second;
+    Dimension third;
+    
+    static const Order ROW_COL_CH;
+    static const Order CH_ROW_COL;
+};
+
+const Order Order::ROW_COL_CH = {Dimension::ROW, Dimension::COLUMN, Dimension::CHANNEL};
+const Order Order::CH_ROW_COL = {Dimension::CHANNEL, Dimension::ROW, Dimension::COLUMN};
+
+
+
+/**
+ * Represents the number of offsets in the underlying array-like data to traverse to the next element along a dimension
+ * 
+ * Strides.row: index(i,j,k) -> index(i+1, j, k)
+ * Strides.col: index(i,j,k) -> index(i, j+1, k)
+ * Strides.ch: index(i,j,k) -> index(i, j, k+1)
+ * 
+ * Names refer to the dimension to travel along (e.g. increasing rows), not the dimension to travel within (e.g. fixed row)
+ * 
+ * TODO: is this good naming? can the naming be improved?
+ */
+struct Strides {
+    int row;
+    int col;
+    int ch;
+};
+
+/**
+ * Abstract type for fixed size invertible transforms that convert a floating point sequence
+ * of up to length n to some domain specified by U
+ */
+template<std::floating_point T, typename U, template<typename> class Container = std::span>
+class Abstract_Transformer_NC {
+    public:
+        const int input_size;
+        const int output_size;
+
+        Abstract_Transformer_NC(int input_size, int output_size) : input_size(input_size), output_size(output_size) {}
+
+        Abstract_Transformer_NC(int size) : Abstract_Transformer_NC(size, size) {}
+
+        /**
+         *  Return 0 if successful, -1 otherwise
+         */
+        virtual int transform(Container<T> in, Container<U> out) = 0;
+        virtual int inverse(Container<U> in, Container<T> out) = 0;
+        
+
+        std::vector<U> transform(Container<const T> in);
+        std::vector<T> inverse(Container<const U> in);
+    
+    // helper methods, a new copy is made for every parameterization of the template
+    // perhaps it could eventually be worthwhile to make static versions that exist outside of templates
+    protected:
+        /**
+         * Utility that finds the least multiple of 2 greater than n
+         */
+        static int radix_2_size(int n);
+
+        /**
+         * Utility function for transfering input indices to output indices
+         */
+        static int bit_reversal(int bits, int num_bits);
+};
+
 template<typename T, int Channels, std::size_t Extent = std::dynamic_extent>
 class Multichannel_Matrix {
     public:
-        enum class Order {
-            COLUMN_MAJOR,
-            ROW_MAJOR
-        };
-
-        struct Strides {
-            int row;
-            int col;
-            int ch;
-        };
+        
 
 
     private:
-        static Strides compute_strides(int m, int n, Order order);
+        static Strides compute_strides(Shape shape, Order order);
 
         // following the convention of using _ as a suffix for internal variables
         std::span<T, Extent> data;
@@ -34,6 +100,8 @@ class Multichannel_Matrix {
         Order order_;
         Strides strides_;
         int size_;
+
+        Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH);
     public:
         // declaring getters here, because the verbosity of moving getters to the impl file seems excessive
         const Shape& shape() const {return this->shape_;}
@@ -41,7 +109,10 @@ class Multichannel_Matrix {
         Order order() const {return this->order_;}
         int size() const {return this->size_;} // TODO: should size be m*n or m*n*channels
 
-        Multichannel_Matrix(std::span<T, Extent> data, int m, int n, Order order = Order::ROW_MAJOR);
+        Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Order order =  Order::ROW_COL_CH);
+        
+        void reshape(Shape shape);
+        
 
         /**
          * Adding an empty constructor for dynamic extent views without full template specialization
@@ -61,20 +132,6 @@ class Multichannel_Matrix {
         Multichannel_Matrix<T, 1> channel(int k);
 };
 
-
-
-// template<typename T>
-// class Multichannel_Matrix<T, 1> {
-//     public:
-//         T& index(int i, int j) {
-//             return this->data[i * this->strides.row + j * this->strides.col]; 
-//         }
-
-//         const T& index(int i, int j) const {
-//             return this->data[i * this->strides.row + j * this->strides.col]; 
-//         }
-// };
-
 template<typename T, std::size_t Extent = std::dynamic_extent>
 using Matrix = Multichannel_Matrix<T, 1, Extent>;
 
@@ -82,8 +139,11 @@ template<typename T, std::size_t Extent = std::dynamic_extent>
 
 using Image_View = Multichannel_Matrix<T, 3, Extent>;
 
+// needs to be declared before ycbcr transformer
+#include "matrix_operations_impl.hpp"
+
 template<typename T, typename U>
-class Abstract_Image_Transformer : public Abstract_Transformer<T, T, Image_View> {
+class Abstract_Image_Transformer : public Abstract_Transformer_NC<T, T, Image_View> {
     
     public:
         const Shape input_shape;
@@ -91,12 +151,12 @@ class Abstract_Image_Transformer : public Abstract_Transformer<T, T, Image_View>
 
         Abstract_Image_Transformer(const Shape shape)
             : input_shape(shape), output_shape(shape), 
-            Abstract_Transformer<T, T, Image_View>(
+            Abstract_Transformer_NC<T, T, Image_View>(
                 shape.m * shape.n * 3) {}
         
         Abstract_Image_Transformer(const Shape input_shape, const Shape output_shape)
             : input_shape(input_shape), output_shape(output_shape),
-            Abstract_Transformer<T, T, Image_View>(
+            Abstract_Transformer_NC<T, T, Image_View>(
                 input_shape.m * input_shape.n * 3, output_shape.m * output_shape.n * 3) {}
 
 };
@@ -130,8 +190,8 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
         // TODO: decide how to handle bad parameters in the constructor e.g. exception, public method which wraps a private constructor, etc
         
         // indicate override of pure virtual signature
-        int transform(Image_View<const T> in, Image_View<T> out) override;
-        int inverse(Image_View<const T> in, Image_View<T> out) override {return -1;}
+        int transform(Image_View<T> in, Image_View<T> out) override;
+        int inverse(Image_View<T> in, Image_View<T> out) override;
 
         /**
          * Use the current values for k_r, k_g, and k_b to compute and set forward transform matrix
@@ -147,6 +207,5 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
 
 #include "multichannel_matrix_impl.hpp"
 #include "ycbcr_transformer_impl.hpp"
-#include "matrix_operations_impl.hpp"
 
 #endif

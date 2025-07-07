@@ -3,12 +3,14 @@
 
 #include "2d_transforms.hpp"
 
+#include <vector>
+
 // TODO: is this verbosity okay? should it be chaned?
 template<typename T>
 YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
         : Abstract_Image_Transformer<T, T>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
-        transform_matrix(std::span(this->forward_transform_data), 3, 3),
-        inverse_matrix(std::span(this->inverse_transform_data), 3, 3) {
+        transform_matrix(std::span(this->forward_transform_data), {3, 3}),
+        inverse_matrix(std::span(this->inverse_transform_data), {3, 3}) {
     
     // the matrices are views on the underlying data so can initialize data after creating the matrices
     // need to create the matrices first because static extent spans cannot point at nothing
@@ -18,25 +20,24 @@ YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
 
 
 template<typename T>
-int YCbCr_Transformer<T>::transform(Image_View<const T> in, Image_View<T> out) {
+int YCbCr_Transformer<T>::transform(Image_View<T> in, Image_View<T> out) {
     // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
     if(in.size() > out.size()) {
         return -1;
     }
 
-    float coeffs[] = {k_r, k_g, k_b}; // assuming RGB
-    // first color channel sets the output values in case not zero initialized
-    int k = 0;
-    for(int i = 0; i < in.shape().m * in.shape().n; i ++) {
-        out.index(k * out.strides().ch + i) = coeffs[k] * in.index(k * in.strides().ch + i);
+
+    return mat::transform_channels(in, this->transform_matrix, out);
+}
+
+template<typename T>
+int YCbCr_Transformer<T>::inverse(Image_View<T> in, Image_View<T> out) {
+    // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
+    if(in.size() > out.size()) {
+        return -1;
     }
-    // second and third color components are added
-    for(k = 1; k < 3; k++) {
-        for(int i = 0; i < in.shape().m * in.shape().n; i ++) {
-            out.index(k * out.strides().ch + i) += in.index(k * in.strides().ch + i);
-        }
-    }
-    return 0;
+
+    return mat::transform_channels(in, this->inverse_matrix, out);
 }
 
 template<typename T>
