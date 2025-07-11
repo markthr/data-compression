@@ -2,43 +2,65 @@
 #define __MULTICHANNEL_MATRIX_IMPL_H__
 
 #include "2d_transforms.hpp"
-
+#include <memory>
+#include <utility>
 #include <span>
+#include <initializer_list>
 
 
 template<typename T, int Channels, std::size_t Extent>
-Multichannel_Matrix<T, Channels, Extent>::Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Strides strides, Order order)
+Multichannel_Matrix<T, Channels, Extent>::Multichannel_Matrix(std::shared_ptr<std::vector<T>> data, Shape shape, Strides strides, Order order)
         : data(data), shape_(shape), order_(order), size_(shape.m*shape.n*Channels), strides_(strides) {}
 
 template<typename T, int Channels, std::size_t Extent>
-Multichannel_Matrix<T, Channels, Extent>::Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Order order) 
-        : Multichannel_Matrix(data, shape, compute_strides(shape, order), order) {}
+Multichannel_Matrix<T, Channels, Extent>::Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order) 
+        : Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(data)), shape, compute_strides(shape, order), order) {
 
+    if((this->data)->size() != this->size()) {
+        (this->data)->resize(this->size());
+    }
+}
+
+template<typename T, int Channels, std::size_t Extent>
+Multichannel_Matrix<T, Channels, Extent>::Multichannel_Matrix(Shape shape, Order order) 
+        : Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, compute_strides(shape, order), order) {}
+
+
+
+// index methods
 template<typename T, int Channels, std::size_t Extent>
 T& Multichannel_Matrix<T, Channels, Extent>::index(int i, int j, int k) {
-    return this->data[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
+    return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
+}
+template<typename T, int Channels, std::size_t Extent>
+const T& Multichannel_Matrix<T, Channels, Extent>::index(int i, int j, int k) const {
+    return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
 }
 
 template<typename T, int Channels, std::size_t Extent>
-const T& Multichannel_Matrix<T, Channels, Extent>::index(int i, int j, int k) const {
-    return this->data[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
+T& Multichannel_Matrix<T, Channels, Extent>::index(int i, int j) {
+    static_assert(Channels == 1);
+    return (*this->data)[i * this->strides_.row + j * this->strides_.col];
 }
-
+template<typename T, int Channels, std::size_t Extent>
+const T& Multichannel_Matrix<T, Channels, Extent>::index(int i, int j) const {
+    static_assert(Channels == 1);
+    return (*this->data)[i * this->strides_.row + j * this->strides_.col];
+}
 
 template<typename T, int Channels, std::size_t Extent>
 T& Multichannel_Matrix<T, Channels, Extent>::index(int i) {
-    return this->data[i];
+    return (*this->data)[i];
 }
-
 template<typename T, int Channels, std::size_t Extent>
 const T& Multichannel_Matrix<T, Channels, Extent>::index(int i) const {
-    return this->data[i];
+    return (*this->data)[i];
 }
 
-template<typename T, int Channels, std::size_t Extent>
-Matrix<T> Multichannel_Matrix<T, Channels, Extent>::channel(int k) {
-    return Multichannel_Matrix<T, 1>(this->data.subspan(this->strides_.ch * k, this->strides_.ch));
-}
+// template<typename T, int Channels, std::size_t Extent>
+// Matrix<T> Multichannel_Matrix<T, Channels, Extent>::channel(int k) {
+//     return Multichannel_Matrix<T, 1>((*this->data).subspan(this->strides_.ch * k, this->strides_.ch));
+// }
 
 template<typename T, int Channels, std::size_t Extent>
 void Multichannel_Matrix<T, Channels, Extent>::reshape(Shape shape) {

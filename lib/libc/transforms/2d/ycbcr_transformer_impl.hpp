@@ -9,8 +9,7 @@
 template<typename T>
 YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
         : Abstract_Image_Transformer<T, T>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
-        transform_matrix(std::span(this->forward_transform_data), {3, 3}),
-        inverse_matrix(std::span(this->inverse_transform_data), {3, 3}) {
+        transform_matrix({3, 3}), inverse_matrix({3, 3}) {
     
     // the matrices are views on the underlying data so can initialize data after creating the matrices
     // need to create the matrices first because static extent spans cannot point at nothing
@@ -43,37 +42,37 @@ int YCbCr_Transformer<T>::inverse(Image_View<T> in, Image_View<T> out) {
 template<typename T>
 void YCbCr_Transformer<T>::compute_forward_transform(){
     // First channel: Y
-    this->forward_transform_data[0] = this->k_r;
-    this->forward_transform_data[1] = this->k_g;
-    this->forward_transform_data[2] = this->k_b;
+    this->transform_matrix.index(0, 0) = this->k_r;
+    this->transform_matrix.index(0, 1) = this->k_g;
+    this->transform_matrix.index(0, 2) = this->k_b;
     
     // Second channel: C_B
-    this->forward_transform_data[3] = -0.5 * this->k_r/(1 - this->k_b);
-    this->forward_transform_data[4] = -0.5 * this->k_g/(1 - this->k_b);
-    this->forward_transform_data[5] = 0.5;
+    this->transform_matrix.index(1, 0) = -0.5 * this->k_r/(1 - this->k_b);
+    this->transform_matrix.index(1, 1) = -0.5 * this->k_g/(1 - this->k_b);
+    this->transform_matrix.index(1, 2) = 0.5;
 
     // Third channel: C_R
-    this->forward_transform_data[6] = 0.5;
-    this->forward_transform_data[7] = -0.5 * this->k_g/(1 - this->k_r);
-    this->forward_transform_data[8] = -0.5 * this->k_b/(1 - this->k_r);
+    this->transform_matrix.index(2, 0) = 0.5;
+    this->transform_matrix.index(2, 1) = -0.5 * this->k_g/(1 - this->k_r);
+    this->transform_matrix.index(2, 2) = -0.5 * this->k_b/(1 - this->k_r);
 }
 
 template<typename T>
 void YCbCr_Transformer<T>::compute_inverse_transform(){
     // First channel: Y
-    this->inverse_transform_data[0] = 1;
-    this->inverse_transform_data[1] = 0;
-    this->inverse_transform_data[2] = 2 - 2*this->k_r;
+    this->inverse_matrix.index(0, 0) = 1;
+    this->inverse_matrix.index(0, 1) = 0;
+    this->inverse_matrix.index(0, 2) = 2 - 2*this->k_r;
     
     // Second channel: C_B
-    this->inverse_transform_data[3] = 1;
-    this->inverse_transform_data[4] = -this->k_b/this->k_g * (2 - 2*this->k_b);
-    this->inverse_transform_data[5] = -this->k_r/this->k_g * (2 - 2*this->k_r);
+    this->inverse_matrix.index(1, 0) = 1;
+    this->inverse_matrix.index(1, 1) = -this->k_b/this->k_g * (2 - 2*this->k_b);
+    this->inverse_matrix.index(1, 2) = -this->k_r/this->k_g * (2 - 2*this->k_r);
 
     // Third channel: C_R
-    this->inverse_transform_data[6] = 1;
-    this->inverse_transform_data[7] = 2 - 2*this->k_b;
-    this->inverse_transform_data[8] = 0;
+    this->inverse_matrix.index(2, 0) = 1;
+    this->inverse_matrix.index(2, 1) = 2 - 2*this->k_b;
+    this->inverse_matrix.index(2, 2) = 0;
 }
 
 #endif

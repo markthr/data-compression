@@ -56,6 +56,7 @@ class FFT : public Abstract_Transformer<T, std::complex<T>> {
         using Abstract_Transformer<T, std::complex<T>>::inverse;
         // indicate override of pure virtual signature
         int transform(std::span<const T> in, std::span<std::complex<T>> out) override;
+        // TODO: add obvious support for noninvertible transforms
         int inverse(std::span<const std::complex<T>> in, std::span<T> out) override;
     
     private:

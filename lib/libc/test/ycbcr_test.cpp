@@ -26,22 +26,19 @@ TEST(YCbCrTest, TransformMatrices) {
     }
 
     auto identity = mat::multiply(ytr.inverse_matrix, ytr.transform_matrix);
-    std::array<float, size> exp_identity  = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    auto exp_identity = mat::eye<float>(3);
 
     for(int k = 0; k < size; k++) {
-        EXPECT_NEAR(exp_identity[k], identity[k], ERR) << "Coeffs not equal at index: " << k;
+        EXPECT_NEAR(exp_identity.index(k), identity.index(k), ERR) << "Coeffs not equal at index: " << k;
     }
 
     const int CHANNELS = 3;
     std::array<double, CHANNELS> exp_product = {191.979, -16.9182, 22.1262};
-    std::array<double, CHANNELS> pixel_data = {223, 182, 162};
-    Matrix<double, CHANNELS> pixel_mat(std::span<double, CHANNELS>(pixel_data), {CHANNELS, 1});
-    std::vector<double> product = mat::multiply(ytr.transform_matrix, pixel_mat);
+    Matrix<double> pixel_mat(std::initializer_list<double>{223, 182, 162}, {CHANNELS, 1});
+    Matrix<double> product = mat::multiply(ytr.transform_matrix, pixel_mat);
 
     for(int k = 0; k < CHANNELS; k++) {
-        exp_product[k]++;
-        product[k]++;
-        EXPECT_NEAR(exp_product[k], product[k], ERR) << "Product not equal at index: " << k;
+        EXPECT_NEAR(exp_product[k], product.index(k), ERR) << "Product not equal at index: " << k;
     }
 }
 
@@ -55,10 +52,10 @@ TEST(YCbCrTest, IdentityTransforms) {
     EXPECT_TRUE(file.is_open()) << "Unable to locate test data";
 
     // TODO: package the CSV parsing into a function and make the data available across tests
-    std::vector<double> input_data;
-    input_data.reserve(SIZE);
+    Image_View<float> image(SHAPE, Order::CH_ROW_COL);
     std::string line;
     if(file.is_open()) {
+        int n = 0;
         while(std::getline(file, line)) {
             auto left = line.begin();
             auto right = left + 1; // assuming line is not empty
@@ -67,7 +64,7 @@ TEST(YCbCrTest, IdentityTransforms) {
                     double val;
                     std::string_view sv(left, right); 
                     std::from_chars(sv.begin(), sv.end(), val);
-                    input_data.push_back(val);
+                    image.index(n++) = val;
                     
                     if(right != line.end()) {
                         // skip past delim
@@ -85,32 +82,28 @@ TEST(YCbCrTest, IdentityTransforms) {
             }
         }
 
-        EXPECT_EQ(input_data.size(), SIZE) << "Failed to parse test data";
+        EXPECT_EQ(n, SIZE) << "Failed to parse test data";
         file.close();
-
-        std::vector<double> transformed_data(SIZE);
-        std::vector<double> output_data(SIZE);
         
-        Image_View<double> input(input_data, SHAPE, Order::CH_ROW_COL);
-        Image_View<double> transformed(transformed_data, SHAPE, Order::CH_ROW_COL);
-        Image_View<double> output(output_data, SHAPE, Order::CH_ROW_COL);
+        Image_View<float> transformed(SHAPE, Order::CH_ROW_COL);
+        Image_View<float> output(SHAPE, Order::CH_ROW_COL);
 
-        YCbCr_Transformer<double> ycbcr(SHAPE);
-        EXPECT_FALSE(ycbcr.transform(input, transformed)) << "Forward transform failed";
+        YCbCr_Transformer<float> ycbcr(SHAPE);
+        EXPECT_FALSE(ycbcr.transform(image, transformed)) << "Forward transform failed";
 
-        for(int i = 0; i < input.shape().m && i < input.shape().n; i++) {
+        for(int i = 0; i < image.shape().m && i < image.shape().n; i++) {
             for(int k = 0; k < CHANNELS; k++) {
-                if(input.index(i, i, k)) {
-                    EXPECT_NE(input.index(i, i, k), transformed.index(i, i, k));
+                if(image.index(i, i, k)) {
+                    EXPECT_NE(image.index(i, i, k), transformed.index(i, i, k));
                 }
             }
         }
 
         EXPECT_FALSE(ycbcr.inverse(transformed, output))  << "Inverse transform failed";
 
-        for(int n = 0; n < input.size(); n++) {
-            if(std::abs(input.index(n) - output.index(n)) > ERR) {
-                EXPECT_NEAR(input.index(n), output.index(n), ERR) << "Transformed value not equal at index: " << n;
+        for(int n = 0; n < image.size(); n++) {
+            if(std::abs(image.index(n) - output.index(n)) > ERR) {
+                EXPECT_NEAR(image.index(n), output.index(n), ERR) << "Transformed value not equal at index: " << n;
                 break;
             }
         }

@@ -3,6 +3,9 @@
 
 #include <span>
 #include <array>
+#include <memory>
+#include <utility>
+#include <initializer_list>
 #include "../transforms.hpp"
 
 struct Shape {
@@ -54,12 +57,12 @@ struct Strides {
 template<std::floating_point T, typename U, template<typename> class Container = std::span>
 class Abstract_Transformer_NC {
     public:
-        const int input_size;
-        const int output_size;
+        const std::size_t input_size;
+        const std::size_t output_size;
 
-        Abstract_Transformer_NC(int input_size, int output_size) : input_size(input_size), output_size(output_size) {}
+        Abstract_Transformer_NC(std::size_t input_size, std::size_t output_size) : input_size(input_size), output_size(output_size) {}
 
-        Abstract_Transformer_NC(int size) : Abstract_Transformer_NC(size, size) {}
+        Abstract_Transformer_NC(std::size_t size) : Abstract_Transformer_NC(size, size) {}
 
         /**
          *  Return 0 if successful, -1 otherwise
@@ -85,6 +88,9 @@ class Abstract_Transformer_NC {
         static int bit_reversal(int bits, int num_bits);
 };
 
+// template<typename T>
+// typedef shared_vec<T> std::shared_ptr<std::vector<T>>
+
 template<typename T, int Channels, std::size_t Extent = std::dynamic_extent>
 class Multichannel_Matrix {
     public:
@@ -95,13 +101,13 @@ class Multichannel_Matrix {
         static Strides compute_strides(Shape shape, Order order);
 
         // following the convention of using _ as a suffix for internal variables
-        std::span<T, Extent> data;
+        std::shared_ptr<std::vector<T>> data;
         Shape shape_;
         Order order_;
         Strides strides_;
         int size_;
 
-        Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH);
+        Multichannel_Matrix(std::shared_ptr<std::vector<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH);
     public:
         // declaring getters here, because the verbosity of moving getters to the impl file seems excessive
         const Shape& shape() const {return this->shape_;}
@@ -109,7 +115,9 @@ class Multichannel_Matrix {
         Order order() const {return this->order_;}
         int size() const {return this->size_;} // TODO: should size be m*n or m*n*channels
 
-        Multichannel_Matrix(std::span<T, Extent> data, Shape shape, Order order =  Order::ROW_COL_CH);
+        
+        Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH);
+        Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH);
         
         void reshape(Shape shape);
         
@@ -123,27 +131,30 @@ class Multichannel_Matrix {
             static_assert(Extent == std::dynamic_extent, "Only dynamic extent matrices are trivially constructable");
         }
 
-        // TODO: is there a better name for this operator?
+        // TODO: is there a better name for this operator? Is there a way to avoid having to write both const and non const version?
         T& index(int i, int j, int k);
         const T& index(int i, int j, int k) const;
-        T& index(int i); // direct index on underlying contiguous memory, perhaps use [] instead here?
+        // only enabled for Channels=1
+        T& index(int i, int j);
+        const T& index(int i, int j) const;
+        // direct index on underlying contiguous memory, perhaps use [] instead here?
+        T& index(int i);
         const T& index(int i) const;
 
-        Multichannel_Matrix<T, 1> channel(int k);
+        // Multichannel_Matrix<T, 1> channel(int k);
 };
 
 template<typename T, std::size_t Extent = std::dynamic_extent>
 using Matrix = Multichannel_Matrix<T, 1, Extent>;
 
 template<typename T, std::size_t Extent = std::dynamic_extent>
-
 using Image_View = Multichannel_Matrix<T, 3, Extent>;
 
 // needs to be declared before ycbcr transformer
 #include "matrix_operations_impl.hpp"
 
 template<typename T, typename U>
-class Abstract_Image_Transformer : public Abstract_Transformer_NC<T, T, Image_View> {
+class Abstract_Image_Transformer : public Abstract_Transformer_NC<T, U, Image_View> {
     
     public:
         const Shape input_shape;
@@ -151,15 +162,17 @@ class Abstract_Image_Transformer : public Abstract_Transformer_NC<T, T, Image_Vi
 
         Abstract_Image_Transformer(const Shape shape)
             : input_shape(shape), output_shape(shape), 
-            Abstract_Transformer_NC<T, T, Image_View>(
+            Abstract_Transformer_NC<T, U, Image_View>(
                 shape.m * shape.n * 3) {}
         
         Abstract_Image_Transformer(const Shape input_shape, const Shape output_shape)
             : input_shape(input_shape), output_shape(output_shape),
-            Abstract_Transformer_NC<T, T, Image_View>(
+            Abstract_Transformer_NC<T, U, Image_View>(
                 input_shape.m * input_shape.n * 3, output_shape.m * output_shape.n * 3) {}
 
 };
+
+
 
 
 
@@ -169,15 +182,12 @@ template<typename T>
 class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
     public:
         static const int Channels = 3;
-    private:
-        std::array<double, 9> forward_transform_data;
-        std::array<double, 9> inverse_transform_data;
     public:
         const float k_r;
         const float k_g;
         const float k_b;
-        Multichannel_Matrix<T, 1, 9> transform_matrix;
-        Multichannel_Matrix<T, 1, 9> inverse_matrix;
+        Multichannel_Matrix<T, 1> transform_matrix;
+        Multichannel_Matrix<T, 1> inverse_matrix;
 
         /**
          * Default values for k_b and k_r are taken from ITU-R BT.601
@@ -205,7 +215,9 @@ class YCbCr_Transformer : public Abstract_Image_Transformer<T, T> {
 };
 
 
+
 #include "multichannel_matrix_impl.hpp"
 #include "ycbcr_transformer_impl.hpp"
+#include "bitdepth_transformer_impl.hpp"
 
 #endif
