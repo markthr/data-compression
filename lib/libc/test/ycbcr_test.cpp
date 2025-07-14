@@ -52,7 +52,7 @@ TEST(YCbCrTest, IdentityTransforms) {
     EXPECT_TRUE(file.is_open()) << "Unable to locate test data";
 
     // TODO: package the CSV parsing into a function and make the data available across tests
-    Image_View<float> image(SHAPE, Order::CH_ROW_COL);
+    Image_Matrix<float> image(SHAPE, Order::CH_ROW_COL);
     std::string line;
     if(file.is_open()) {
         int n = 0;
@@ -85,8 +85,8 @@ TEST(YCbCrTest, IdentityTransforms) {
         EXPECT_EQ(n, SIZE) << "Failed to parse test data";
         file.close();
         
-        Image_View<float> transformed(SHAPE, Order::CH_ROW_COL);
-        Image_View<float> output(SHAPE, Order::CH_ROW_COL);
+        Image_Matrix<float> transformed(SHAPE, Order::CH_ROW_COL);
+        Image_Matrix<float> output(SHAPE, Order::CH_ROW_COL);
 
         YCbCr_Transformer<float> ycbcr(SHAPE);
         EXPECT_FALSE(ycbcr.transform(image, transformed)) << "Forward transform failed";

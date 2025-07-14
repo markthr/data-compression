@@ -28,6 +28,17 @@ The goal is to implement MPEG style image compression using only the C++ standar
 
 The initial plan is to implement stages 2 through 7 in C++ and then made accessible in Python via pybind11.
 
+### 2. YCbCr Conversion
+
+To take advantage of human vision being relatively less sensitive to color/chrominance changes relative to changes in brightness/luma, it is 
+necessary to seperate out the luma component. How the 2 chroma channels are defined is an arbitrary decision that is worth experimentation.
+The current defintions used by default in the code are taken from ITU-R BT.601 as taken from the 
+[YCbCr Wiki page](https://en.wikipedia.org/wiki/YCbCr).
+
+TODO: It is my understanding that chroma/chrominance can be used interchangeable but that it is best practice to make a distinction between
+luma and luminance to avoid confusion with the concept of relative luminance. It is worth reading some color science to get a better
+understanding.
+
 ## Type Definitions
 
 ### Multichannel_Matrix
@@ -51,6 +62,18 @@ The channel dimension is intended to represent things like the color channel in 
 Public read-only variables follow the convention of appending an underscore to their name(`foo_`) for the underlying field and then only 
 providing a getter which follows the same name (`foo()`). Fields are not declared `const` in order to make matrices trivially constructable and 
 freely assignable.
+
+**Current Work:**
+
+1. Chroma subsampling will generate jagged multichannelmatrices so support for jagged matrices should be added. Partial support should be 
+sufficient because the 2D submatrix for a given channel will not be jagged. Jaggedness will be introduced because the submatrix for each
+channel might not be equal.
+
+2. A method for functions which accept a multichannel matrix to coerce deep const. It is desirable for a function to specify that it will
+not modify any data in a matrix it takes as a parameter, but `Multichannel_Matrix<T>` cannot be coerced to `Multichannel_Matrix<const T>`.
+This issue is discussed [in this blog](https://brevzin.github.io/c++/2021/09/10/deep-const/).
+
+3. Add a shallow copy constructor to leverage the ability to use `shared_ptr` to make non-owning matrices.
 
 
 #### Data: `std::shared_ptr<std::vector<T>> data`
@@ -119,4 +142,5 @@ struct Strides {
 #### Size: `int size_`
 
 This field stores the size of the multichannel matrix which is calculated as `shape.m * shape.n * Channels`.
+
 

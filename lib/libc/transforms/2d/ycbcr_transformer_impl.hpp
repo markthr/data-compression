@@ -19,7 +19,7 @@ YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
 
 
 template<typename T>
-int YCbCr_Transformer<T>::transform(Image_View<T> in, Image_View<T> out) {
+int YCbCr_Transformer<T>::transform(Image_Matrix<T> in, Image_Matrix<T> out) {
     // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
     if(in.size() > out.size()) {
         return -1;
@@ -30,7 +30,7 @@ int YCbCr_Transformer<T>::transform(Image_View<T> in, Image_View<T> out) {
 }
 
 template<typename T>
-int YCbCr_Transformer<T>::inverse(Image_View<T> in, Image_View<T> out) {
+int YCbCr_Transformer<T>::inverse(Image_Matrix<T> in, Image_Matrix<T> out) {
     // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
     if(in.size() > out.size()) {
         return -1;
