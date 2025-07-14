@@ -1,5 +1,5 @@
-#ifndef __MULTICHANNEL_MATRIX_IMPL_H__
-#define __MULTICHANNEL_MATRIX_IMPL_H__
+#ifndef __MULTICHANNEL_MATRIX_H__
+#define __MULTICHANNEL_MATRIX_H__
 
 #include "2d_transforms.hpp"
 #include <memory>
@@ -27,8 +27,8 @@ struct Order {
     static const Order CH_ROW_COL;
 };
 
-const Order Order::ROW_COL_CH = {Dimension::ROW, Dimension::COLUMN, Dimension::CHANNEL};
-const Order Order::CH_ROW_COL = {Dimension::CHANNEL, Dimension::ROW, Dimension::COLUMN};
+constexpr Order Order::ROW_COL_CH = {Dimension::ROW, Dimension::COLUMN, Dimension::CHANNEL};
+constexpr Order Order::CH_ROW_COL = {Dimension::CHANNEL, Dimension::ROW, Dimension::COLUMN};
 
 
 
@@ -57,6 +57,8 @@ private:
      * This is used each time Shape is set either in a constructor or via reshape(...) and the result is saved in the strides_ field.
      */
     static Strides compute_strides(Shape shape, Order order);
+
+    static Order swap_row_col(Order order);
 
     // following the convention of using _ as a suffix for internal variables
     std::shared_ptr<std::vector<T>> data;
@@ -92,6 +94,12 @@ public:
     Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH)
         : Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, compute_strides(shape, order), order) {}
     
+    /**
+     * Shallow copy constructor
+     */
+    Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Extent>& other) 
+        : Multichannel_Matrix(other.data, other.shape_, other.strides_, other.order_) {}
+    
 // Getters
     const Shape& shape() const {return this->shape_;}
     const Strides& strides() const {return this->strides_;}
@@ -102,7 +110,7 @@ public:
      * Adding an empty constructor for dynamic extent matrices without full template specialization
      * Perhaps there is a way to avoid this with CRTP, but CRTP seems like it'd be overkill
      * 
-     * TODO: currently static extent matrices (able to live entirely on the stack) are not supported.
+     * TODO: currently static extent matrices (able to live entirely on the stack) are Multichannel_Matrixnot supported.
      * Is it worth adding support or should extent be removed from the template parameters.
      */
     Multichannel_Matrix() :Multichannel_Matrix({}, 0, 0){
@@ -133,17 +141,45 @@ public:
     T& index(int i) {return (*this->data)[i];}
     const T& index(int i) const {return (*this->data)[i];}
 
-// Data changes
+// Data reformatting
     Multichannel_Matrix<T, Channels, Extent> reshape(Shape shape, bool inplace = false) {
         assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
-        this->shape_ = shape;
 
-        // TODO: add shallow copy constructor to use when return a view to avoid copying all data
+        if(inplace) {
+            this->shape_ = shape;
+            this->strides_ = compute_strides(this->shape_, this->order_);
+            return *this;
+        }
+        else {
+            // TODO: does the default move constructor work instead?
+            // also worth considering if it is worth adding another constructor to avoid calculating strides twice here
+            Multichannel_Matrix<T, Channels, Extent> new_mat(*this);
+            new_mat.shape_ = shape;
+            new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
+            return new_mat;
+        }
+    }
 
-        return *this;
+    Multichannel_Matrix<T, Channels, Extent> transpose(bool inplace = false) {
+        if(inplace) {
+            this->shape_ = {this->shape_.n, this->shape_.m}; // swap components of Shape
+            this->order_ = swap_row_col(this->order_);
+            this->strides_ = compute_strides(this->shape_, this->order_);
+            return *this;
+        }
+        else {
+            // TODO: does the default move constructor work instead?
+            Multichannel_Matrix<T, Channels, Extent> new_mat(*this);
+            new_mat.shape_ = {this->shape_.n, this->shape_.m};
+            new_mat.order_ = swap_row_col(this->order_);
+            new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
+            
+            return new_mat;
+        }
     }
 };
 
+// TODO: perhaps follow the _t convention for typedef or does using have a different convention?
 // convenience alias for single channel matrices
 template<typename T, std::size_t Extent = std::dynamic_extent>
 using Matrix = Multichannel_Matrix<T, 1, Extent>;
@@ -188,6 +224,36 @@ Strides Multichannel_Matrix<T, Channels, Extent>::compute_strides(Shape shape, O
     }
 
     return strides;
+}
+
+/**
+ * Swaps the order of row and col so an order of {Row, Channel, Column} yields {Column, Channel, Row}
+ * 
+ * It is assumed that a valid order is supplied
+ */
+template<typename T, int Channels, std::size_t Extent>
+Order Multichannel_Matrix<T, Channels, Extent>::swap_row_col(Order order) {
+
+    const int n_dim = 3;
+    Dimension dims[n_dim] = {order.first, order.second, order.third};
+
+    int row_pos;
+    int col_pos;
+
+    for(int i = 0; i < n_dim; i++) {
+        if(dims[i] == Dimension::ROW) {
+            row_pos = i;
+        }
+        else if(dims[i] == Dimension::COLUMN) {
+            col_pos = i;
+        }
+    }
+
+    dims[row_pos] = Dimension::COLUMN;
+    dims[col_pos] = Dimension::ROW;
+
+    // could I forward the array instead?
+    return {dims[0], dims[1], dims[2]};
 }
 
 #endif

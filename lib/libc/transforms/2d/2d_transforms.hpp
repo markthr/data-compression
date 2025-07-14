@@ -7,7 +7,7 @@
 #include <utility>
 #include <initializer_list>
 #include "../transforms.hpp"
-#include "multichannel_matrix_impl.hpp"
+#include "multichannel_matrix.hpp"
 
 /**
  * Abstract type for fixed size invertible transforms that convert a floating point sequence
@@ -53,7 +53,7 @@ class Abstract_Transformer_NC {
 
 
 // needs to be declared before ycbcr transformer
-#include "matrix_operations_impl.hpp"
+#include "matrix_operations.hpp"
 
 template<typename T, typename U>
 class Abstract_Image_Transformer : public Abstract_Transformer_NC<T, U, Image_Matrix> {

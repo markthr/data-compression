@@ -1,5 +1,5 @@
-#ifndef __MATRIX_OPERATIONS_IMPL_H__
-#define __MATRIX_OPERATIONS_IMPL_H__
+#ifndef __MATRIX_OPERATIONS_H__
+#define __MATRIX_OPERATIONS_H__
 
 #include <vector>
 #include <utility>
