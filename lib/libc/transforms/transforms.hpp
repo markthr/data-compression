@@ -6,6 +6,27 @@
 #include <complex>
 #include <span>
 
+/**
+ * Concept for types that support 4 basic mathematical operations
+ * 
+ * Intended to include std::complex<T> types in addition to the types accepted by std::is_arithmetic_v<T>
+ */
+template<typename T>
+concept Has_Arithmetic = requires(T t1, T t2) {
+    {t1 + t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 - t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 * t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 / t2} -> std::same_as<std::remove_cv_t<T>>;
+};
+
+/**
+ * Alias template for generating const vectors
+ * 
+ * const std::vector cannot be passed as a template template parameter because const is an invalid qualifier for a template
+ * Therefore, const std::vector does not name a template.
+ */
+template<typename T>
+using const_vector_t = const std::vector<T>;
 
 /**
  * Abstract type for fixed size invertible transforms that convert a floating point sequence

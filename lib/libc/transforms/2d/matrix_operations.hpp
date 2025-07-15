@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <utility>
+#include <type_traits>
 #include "2d_transforms.hpp"
 
 // TODO: initialize zero or split loop to initialize before accumulate product?
@@ -24,8 +25,8 @@ namespace mat {
         return identity;
 
     }
-    template<typename T, size_t Extent1, size_t Extent2>
-    Matrix<T> multiply(Matrix<T, Extent1> m1, Matrix<T, Extent2> m2) {
+    template<typename T, size_t Extent1, size_t Extent2, template<typename> class Container1, template<typename> class Container2>
+    Matrix<T> multiply(Matrix<T, Container1, Extent1> m1, Matrix<T, Container2, Extent2> m2) {
         assert(m1.shape().n && m1.shape().n == m2.shape().m); // no reason to have an exception that gets handled, bad matrix multiplication is bad code and not an exceptional case
 
         Matrix<T> product({m1.shape().m, m2.shape().n});
@@ -47,7 +48,7 @@ namespace mat {
 
 
     template<typename T, int Channels, size_t Extent>
-    int transform_channels(Multichannel_Matrix<T, Channels, Extent> input,
+    int transform_channels(Multichannel_Matrix<T, Channels, Extent, const_vector_t> input,
             Multichannel_Matrix<T, 1> transform,
             Multichannel_Matrix<T, Channels, Extent> output) {
         
@@ -62,7 +63,8 @@ namespace mat {
         for(int i = 0; i < input.shape().m; i++) {
             for(int j = 0; j < input.shape().n; j++) {
                 for(int ch = 0; ch < Channels; ch++) {
-                    pixel_mat.index(ch, 0) = input.index(i, j, ch); // fetch data for pixel
+                    const T& data = input.cindex(i, j, ch); // fetch data for pixel
+                    pixel_mat.index(ch, 0) = data; 
                 }
  
                 Matrix<T> product = mat::multiply(transform, pixel_mat);
@@ -76,6 +78,7 @@ namespace mat {
 
         return 0;
     }
+
  
     /**
      * Use a square matrix to transform a matrix's channels

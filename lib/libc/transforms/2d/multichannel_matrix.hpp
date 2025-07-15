@@ -49,7 +49,27 @@ struct Strides {
     int ch;
 };
 
-template<typename T, int Channels, std::size_t Extent = std::dynamic_extent>
+/**
+ * A concept for testing if the given type pointer can be assigned from a std::share_ptr<Underlying>
+ */
+template<typename Pointer, typename Underlying>
+concept Can_Share = requires {std::same_as<std::remove_cvref_t<Pointer>, std::shared_ptr<Underlying>>;}
+    || requires {std::same_as<std::remove_cvref_t<Pointer>, std::shared_ptr<const Underlying>>;};
+
+
+
+template<typename M, typename T>
+concept Matrix_Like = requires(M m) {
+    {m.data} -> Can_Share<T>;
+    {m.shape()} -> std::same_as<Shape>;
+    {m.order()} -> std::same_as<Order>;
+    {m.strides()} -> std::same_as<Strides>;
+    {m.size()} -> std::same_as<int>;
+    Has_Arithmetic<T>;
+};
+
+
+template<Has_Arithmetic T, int Channels, std::size_t Extent = std::dynamic_extent, template<typename> class Container = std::vector>
 class Multichannel_Matrix {
 private:
     /**
@@ -57,11 +77,13 @@ private:
      * This is used each time Shape is set either in a constructor or via reshape(...) and the result is saved in the strides_ field.
      */
     static Strides compute_strides(Shape shape, Order order);
-
     static Order swap_row_col(Order order);
 
+public:
+    // declared public so concepts can access it because concepts cannot be declare friends so no private access
+    std::shared_ptr<Container<T>> data;
+private:
     // following the convention of using _ as a suffix for internal variables
-    std::shared_ptr<std::vector<T>> data;
     Shape shape_;
     Order order_;
     Strides strides_;
@@ -70,8 +92,10 @@ private:
     /**
      * Internal constructor, not currently intended to be able to manually specify strides. Strides should be set based
      * on the passed Order struct.
+     * 
+     * If data.size() does not equal shape.m*shape.n * Channels then the underlying vector will be resized
      */
-    Multichannel_Matrix(std::shared_ptr<std::vector<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH)
+    Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH)
         : data(data), shape_(shape), order_(order), size_(shape.m*shape.n*Channels), strides_(strides) {}
 public:
 // Constructors
@@ -81,7 +105,7 @@ public:
      * list through functions.
      */
     Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(data)), shape, compute_strides(shape, order), order) {
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(data)), shape, compute_strides(shape, order), order) {
 
         if((this->data)->size() != this->size()) {
             (this->data)->resize(this->size());
@@ -92,17 +116,30 @@ public:
      * Constructor for creating a matrix of all zeros.
      */
     Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, compute_strides(shape, order), order) {}
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, compute_strides(shape, order), order) {}
     
     /**
      * Shallow copy constructor
      */
-    Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Extent>& other) 
+    Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Extent, Container>& other) 
         : Multichannel_Matrix(other.data, other.shape_, other.strides_, other.order_) {}
+
+    /**
+     * Converter
+     * TODO: is there a better name to describe what this does? Should this be private or protected?
+     */
+    template<Matrix_Like<T> M>
+    static Multichannel_Matrix<T, Channels, Extent, Container> as_matrix(M& m) {
+        
+        // TODO: should this constructor be private? Should a different guard be used instead of assert?
+        assert(m.shape().m * m.shape().n * Channels == m.size());
+
+        return Multichannel_Matrix<T, Channels, Extent, Container>(m.data, m.shape(), m.strides(), m.order());
+    }
     
 // Getters
-    const Shape& shape() const {return this->shape_;}
-    const Strides& strides() const {return this->strides_;}
+    Shape shape() const {return this->shape_;}
+    Strides strides() const {return this->strides_;}
     Order order() const {return this->order_;}
     int size() const {return this->size_;} // TODO: should size be m*n or m*n*channels    
 
@@ -123,7 +160,7 @@ public:
     T& index(int i, int j, int k) {
         return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
     }
-    const T& index(int i, int j, int k) const {
+    const T& cindex(int i, int j, int k) const {
         return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
     }
 
@@ -132,17 +169,17 @@ public:
         static_assert(Channels == 1);
         return (*this->data)[i * this->strides_.row + j * this->strides_.col];
     }
-    const T& index(int i, int j) const {
+    const T& cindex(int i, int j) const {
         static_assert(Channels == 1);
         return (*this->data)[i * this->strides_.row + j * this->strides_.col];
     }
 
     // direct index on underlying contiguous memory, perhaps use [] instead here or add it and support both?
     T& index(int i) {return (*this->data)[i];}
-    const T& index(int i) const {return (*this->data)[i];}
+    const T& cindex(int i) const {return (*this->data)[i];}
 
 // Data reformatting
-    Multichannel_Matrix<T, Channels, Extent> reshape(Shape shape, bool inplace = false) {
+    Multichannel_Matrix<T, Channels, Extent, Container> reshape(Shape shape, bool inplace = false) {
         assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
 
         if(inplace) {
@@ -160,7 +197,7 @@ public:
         }
     }
 
-    Multichannel_Matrix<T, Channels, Extent> transpose(bool inplace = false) {
+    Multichannel_Matrix<T, Channels, Extent, Container> transpose(bool inplace = false) {
         if(inplace) {
             this->shape_ = {this->shape_.n, this->shape_.m}; // swap components of Shape
             this->order_ = swap_row_col(this->order_);
@@ -181,12 +218,12 @@ public:
 
 // TODO: perhaps follow the _t convention for typedef or does using have a different convention?
 // convenience alias for single channel matrices
-template<typename T, std::size_t Extent = std::dynamic_extent>
-using Matrix = Multichannel_Matrix<T, 1, Extent>;
+template<Has_Arithmetic T, template<typename> class Container = std::vector, std::size_t Extent = std::dynamic_extent>
+using Matrix = Multichannel_Matrix<T, 1, Extent, Container>;
 
 // convenience alias for 3 channel matrices
-template<typename T, std::size_t Extent = std::dynamic_extent>
-using Image_Matrix = Multichannel_Matrix<T, 3, Extent>;
+template<Has_Arithmetic T, template<typename> class Container = std::vector, std::size_t Extent = std::dynamic_extent>
+using Image_Matrix = Multichannel_Matrix<T, 3, Extent, Container>;
 
 
 
@@ -199,8 +236,8 @@ using Image_Matrix = Multichannel_Matrix<T, 3, Extent>;
 
 
 
-template<typename T, int Channels, std::size_t Extent>
-Strides Multichannel_Matrix<T, Channels, Extent>::compute_strides(Shape shape, Order order) {
+template<Has_Arithmetic T, int Channels, std::size_t Extent, template<typename> class Container>
+Strides Multichannel_Matrix<T, Channels, Extent, Container>::compute_strides(Shape shape, Order order) {
     // ensure dimensions are not repeated in the ordering
     assert(order.first != order.second && order.first != order.third && order.second != order.third); 
     Strides strides;
@@ -231,8 +268,8 @@ Strides Multichannel_Matrix<T, Channels, Extent>::compute_strides(Shape shape, O
  * 
  * It is assumed that a valid order is supplied
  */
-template<typename T, int Channels, std::size_t Extent>
-Order Multichannel_Matrix<T, Channels, Extent>::swap_row_col(Order order) {
+template<Has_Arithmetic T, int Channels, std::size_t Extent, template<typename> class Container>
+Order Multichannel_Matrix<T, Channels, Extent, Container>::swap_row_col(Order order) {
 
     const int n_dim = 3;
     Dimension dims[n_dim] = {order.first, order.second, order.third};

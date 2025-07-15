@@ -8,7 +8,7 @@
 // TODO: is this verbosity okay? should it be chaned?
 template<typename T>
 YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
-        : Abstract_Image_Transformer<T, T>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
+        : Abstract_Matrix_Transformer<T, T, Channels>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
         transform_matrix({3, 3}), inverse_matrix({3, 3}) {
     
     // the matrices are views on the underlying data so can initialize data after creating the matrices
@@ -17,9 +17,8 @@ YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
     this->compute_inverse_transform();
 }
 
-
 template<typename T>
-int YCbCr_Transformer<T>::transform(Image_Matrix<T> in, Image_Matrix<T> out) {
+int YCbCr_Transformer<T>::transform_impl(Image_Matrix<T, const_vector_t> in, Image_Matrix<T> out) {
     // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
     if(in.size() > out.size()) {
         return -1;
@@ -30,7 +29,7 @@ int YCbCr_Transformer<T>::transform(Image_Matrix<T> in, Image_Matrix<T> out) {
 }
 
 template<typename T>
-int YCbCr_Transformer<T>::inverse(Image_Matrix<T> in, Image_Matrix<T> out) {
+int YCbCr_Transformer<T>::inverse_impl(Image_Matrix<T, const_vector_t> in, Image_Matrix<T> out) {
     // TODO: currently no enforcement on input and output both having the same element ordering or shape, is this the correct choice?
     if(in.size() > out.size()) {
         return -1;

@@ -9,7 +9,34 @@ Currently, focus is on MPEG style image compression. MP3 style audio compression
 
 ### FFT: Fast Fourier Transform
 
-### DFT-II: Discrete Fourier Transform
+Currently an iterative radix-2 FFT is implemented.
+
+**Future Work:**
+
+1. Switch to a recursive implementation to ensure cache coherance. It is worth considering whether it should be tail recursive.
+The kernel of the recursive FFT should be a small iterative FFT e.g. size 8.
+
+2. Add more FFT radixes e.g. radix-3, radix-5, and radix-7. The current implementation zero pads inputs to ensure they are always a power of 2.
+In the worst case of $2^k+1$, this doubles the amount of computation. Supporting more FFT radixes would allow more flexible factorization which
+improves the worst case.
+
+3. Expand this FFT write up.
+
+### DCT-II: Discrete Fourier Transform
+
+Currently a type II DCT is implemented based on the implemented FFT discussed in the previous section.
+
+**Future Work:**
+
+1. Take advantage of symmetry. There is no need to perform a size $2n$ FFT when $n$ has even length.
+
+2. Implement other DCT variants. Implementing type I, III, and IV DCTs would allow for empirical comparisons of how well each works in
+different data compression algorithms.
+
+3. Implement the modified discrete cosine transform (MDCT) which is a lapped version of DCT-IV. The overlap between consecutive blocks
+makes the MDCT attractive for avoiding artifacts introduced by the boundary between blocks.
+
+4. Expand this DCT write up.
 
 # MPEG
 
@@ -73,7 +100,6 @@ channel might not be equal.
 not modify any data in a matrix it takes as a parameter, but `Multichannel_Matrix<T>` cannot be coerced to `Multichannel_Matrix<const T>`.
 This issue is discussed [in this blog](https://brevzin.github.io/c++/2021/09/10/deep-const/).
 
-3. Add a shallow copy constructor to leverage the ability to use `shared_ptr` to make non-owning matrices.
 
 
 #### Data: `std::shared_ptr<std::vector<T>> data`

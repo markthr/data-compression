@@ -1,3 +1,2 @@
-lib/libc/build/
-lib/build/
-/build
+*/build/
+build/
