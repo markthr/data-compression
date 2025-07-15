@@ -25,8 +25,8 @@ concept Has_Arithmetic = requires(T t1, T t2) {
  * const std::vector cannot be passed as a template template parameter because const is an invalid qualifier for a template
  * Therefore, const std::vector does not name a template.
  */
-template<typename T>
-using const_vector_t = const std::vector<T>;
+template<typename T, typename Allocator = std::allocator<T>>
+using const_vector_t = const std::vector<T, Allocator>;
 
 /**
  * Abstract type for fixed size invertible transforms that convert a floating point sequence

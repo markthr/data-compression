@@ -69,7 +69,7 @@ concept Matrix_Like = requires(M m) {
 };
 
 
-template<Has_Arithmetic T, int Channels, std::size_t Extent = std::dynamic_extent, template<typename> class Container = std::vector>
+template<Has_Arithmetic T, int Channels, template<typename> typename Container = std::vector>
 class Multichannel_Matrix {
 private:
     /**
@@ -121,7 +121,7 @@ public:
     /**
      * Shallow copy constructor
      */
-    Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Extent, Container>& other) 
+    Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Container>& other) 
         : Multichannel_Matrix(other.data, other.shape_, other.strides_, other.order_) {}
 
     /**
@@ -129,12 +129,12 @@ public:
      * TODO: is there a better name to describe what this does? Should this be private or protected?
      */
     template<Matrix_Like<T> M>
-    static Multichannel_Matrix<T, Channels, Extent, Container> as_matrix(M& m) {
+    static Multichannel_Matrix<T, Channels, Container> as_matrix(M& m) {
         
         // TODO: should this constructor be private? Should a different guard be used instead of assert?
         assert(m.shape().m * m.shape().n * Channels == m.size());
 
-        return Multichannel_Matrix<T, Channels, Extent, Container>(m.data, m.shape(), m.strides(), m.order());
+        return Multichannel_Matrix<T, Channels, Container>(m.data, m.shape(), m.strides(), m.order());
     }
     
 // Getters
@@ -144,23 +144,18 @@ public:
     int size() const {return this->size_;} // TODO: should size be m*n or m*n*channels    
 
     /**
-     * Adding an empty constructor for dynamic extent matrices without full template specialization
-     * Perhaps there is a way to avoid this with CRTP, but CRTP seems like it'd be overkill
+     * Creates an empty matrix that is considered 0 x 0 
      * 
-     * TODO: currently static extent matrices (able to live entirely on the stack) are Multichannel_Matrixnot supported.
-     * Is it worth adding support or should extent be removed from the template parameters.
+     * Trivially constructable matrices are usefule because they allow a matrix variable to be declared and then assigned to later
      */
-    Multichannel_Matrix() :Multichannel_Matrix({}, 0, 0){
-        // allow dynamic extent matrix views to be trivially constructable.
-        static_assert(Extent == std::dynamic_extent, "Only dynamic extent matrices are trivially constructable");
-    }
+    Multichannel_Matrix() :Multichannel_Matrix({}, {0, 0}){}
 
 // Indexing methods
 // TODO: is there a better name for this operator? Is there a way to avoid having to write both const and non const version?
     T& index(int i, int j, int k) {
         return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
     }
-    const T& cindex(int i, int j, int k) const {
+    const T& index(int i, int j, int k) const {
         return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
     }
 
@@ -169,17 +164,17 @@ public:
         static_assert(Channels == 1);
         return (*this->data)[i * this->strides_.row + j * this->strides_.col];
     }
-    const T& cindex(int i, int j) const {
+    const T& index(int i, int j) const {
         static_assert(Channels == 1);
         return (*this->data)[i * this->strides_.row + j * this->strides_.col];
     }
 
     // direct index on underlying contiguous memory, perhaps use [] instead here or add it and support both?
     T& index(int i) {return (*this->data)[i];}
-    const T& cindex(int i) const {return (*this->data)[i];}
+    const T& index(int i) const {return (*this->data)[i];}
 
 // Data reformatting
-    Multichannel_Matrix<T, Channels, Extent, Container> reshape(Shape shape, bool inplace = false) {
+    Multichannel_Matrix<T, Channels, Container> reshape(Shape shape, bool inplace = false) {
         assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
 
         if(inplace) {
@@ -190,14 +185,14 @@ public:
         else {
             // TODO: does the default move constructor work instead?
             // also worth considering if it is worth adding another constructor to avoid calculating strides twice here
-            Multichannel_Matrix<T, Channels, Extent> new_mat(*this);
+            Multichannel_Matrix<T, Channels> new_mat(*this);
             new_mat.shape_ = shape;
             new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
             return new_mat;
         }
     }
 
-    Multichannel_Matrix<T, Channels, Extent, Container> transpose(bool inplace = false) {
+    Multichannel_Matrix<T, Channels, Container> transpose(bool inplace = false) {
         if(inplace) {
             this->shape_ = {this->shape_.n, this->shape_.m}; // swap components of Shape
             this->order_ = swap_row_col(this->order_);
@@ -206,7 +201,7 @@ public:
         }
         else {
             // TODO: does the default move constructor work instead?
-            Multichannel_Matrix<T, Channels, Extent> new_mat(*this);
+            Multichannel_Matrix<T, Channels> new_mat(*this);
             new_mat.shape_ = {this->shape_.n, this->shape_.m};
             new_mat.order_ = swap_row_col(this->order_);
             new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
@@ -218,12 +213,12 @@ public:
 
 // TODO: perhaps follow the _t convention for typedef or does using have a different convention?
 // convenience alias for single channel matrices
-template<Has_Arithmetic T, template<typename> class Container = std::vector, std::size_t Extent = std::dynamic_extent>
-using Matrix = Multichannel_Matrix<T, 1, Extent, Container>;
+template<Has_Arithmetic T, template<typename> class Container = std::vector>
+using Matrix = Multichannel_Matrix<T, 1, Container>;
 
 // convenience alias for 3 channel matrices
-template<Has_Arithmetic T, template<typename> class Container = std::vector, std::size_t Extent = std::dynamic_extent>
-using Image_Matrix = Multichannel_Matrix<T, 3, Extent, Container>;
+template<Has_Arithmetic T, template<typename> class Container = std::vector>
+using Image_Matrix = Multichannel_Matrix<T, 3, Container>;
 
 
 
@@ -236,8 +231,8 @@ using Image_Matrix = Multichannel_Matrix<T, 3, Extent, Container>;
 
 
 
-template<Has_Arithmetic T, int Channels, std::size_t Extent, template<typename> class Container>
-Strides Multichannel_Matrix<T, Channels, Extent, Container>::compute_strides(Shape shape, Order order) {
+template<Has_Arithmetic T, int Channels, template<typename> class Container>
+Strides Multichannel_Matrix<T, Channels, Container>::compute_strides(Shape shape, Order order) {
     // ensure dimensions are not repeated in the ordering
     assert(order.first != order.second && order.first != order.third && order.second != order.third); 
     Strides strides;
@@ -268,8 +263,8 @@ Strides Multichannel_Matrix<T, Channels, Extent, Container>::compute_strides(Sha
  * 
  * It is assumed that a valid order is supplied
  */
-template<Has_Arithmetic T, int Channels, std::size_t Extent, template<typename> class Container>
-Order Multichannel_Matrix<T, Channels, Extent, Container>::swap_row_col(Order order) {
+template<Has_Arithmetic T, int Channels, template<typename> class Container>
+Order Multichannel_Matrix<T, Channels, Container>::swap_row_col(Order order) {
 
     const int n_dim = 3;
     Dimension dims[n_dim] = {order.first, order.second, order.third};

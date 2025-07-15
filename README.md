@@ -38,6 +38,52 @@ makes the MDCT attractive for avoiding artifacts introduced by the boundary betw
 
 4. Expand this DCT write up.
 
+## Transform Design
+
+### Enforcing const correctness
+ 
+A transform does not modify its input when generating an output. To enforce this, the C++ types containing the input are `const` qualified. The
+input types `WrappingType<T>` used have reference semantics so `const WrappingType<T>` is shallow const so elements within a 
+`const Container<T>` can still be modified. If the wrapping type is a `std::span`, then `std::span<const T>` will provide deep const, but trying
+to convert `std::span<T>` to `std::span<const T>` will cause template substitution to fail. This issue is discussed at greater length
+[in this blog](https://brevzin.github.io/c++/2021/09/10/deep-const/).
+
+To address this, a public template function is used to accept a potentially deep const input and then coerce it into being deep const. The 
+coerced value is then passed to a private pure virtual function which performs the actual transform. A const reference is used in order to
+ensure the C++ compiler selects the `const` version of an overloaded functions. More detail is provided in the discussion of abstract transform
+types.
+
+### Common Concepts
+
+#### `Has_Arithmetic`
+
+The `Has_Arithmetic` concept abstracts types which support the 4 basic arithmetic operations. This concept is designed to accept 
+`std::complex<...>` types in addition to the floating point and integer types that satisfy `std::is_arithmetic_v<T>`.
+
+```cpp
+template<typename T>
+concept Has_Arithmetic = requires(T t1, T t2) {
+    {t1 + t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 - t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 * t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 / t2} -> std::same_as<std::remove_cv_t<T>>;
+};
+```
+
+### Common Types
+
+#### `const_vector_t`
+
+A `const_vector_t` is a template for generating `const std::vector<..>` types.
+
+```cpp
+template<typename T, typename Allocator = std::allocator<T>>
+using const_vector_t = const std::vector<T, Allocator>;
+```
+
+It is not allowed for a `template template` parameter to be const qualified e.g. 
+`template<template<typename> typename Container = const std::vector` will yield an error due to an invalid template parameter.
+This is because `const` is used to qualify types while a template is used to generate types.
 # MPEG
 
 The goal is to implement MPEG style image compression using only the C++ standard library.
@@ -68,10 +114,87 @@ understanding.
 
 ## Type Definitions
 
-### Multichannel_Matrix
+### Matrix Concepts
 
+#### `Can_Share`
+
+The `Can_Share` concept is used to abstract the relationship between a `std::shared_ptr<...> Pointer` and the types `Underling`which can be used to generate other shared pointers that point at the same data as the provided pointer.
+
+```cpp
+template<typename Pointer, typename Underlying>
+concept Can_Share = requires {std::same_as<std::remove_cvref_t<Pointer>, std::shared_ptr<Underlying>>;}
+    || requires {std::same_as<std::remove_cvref_t<Pointer>, std::shared_ptr<const Underlying>>;};
 ```
-template<typename T, int Channels, std::size_t Extent>
+
+Examples of such sharing are included below.
+
+```cpp
+std::shared_ptr<std::vector<int>> shared_vector (new std::vector<float>({1, 2, 3, 4, 5}));
+
+std::shared_ptr<std::vector<int>> const_ptr = shared_vector; // valid!
+std::shared_ptr<const std::vector<int>> const_ptr = shared_vector; // valid!
+```
+
+#### `Matrix_Like`
+
+The `Matrix_Like` concept is used to abstract types which may be coerced into deep const matrices. A matrix must share the API of a 
+`Multichannel_Matrix<...>` and have a type which satisfies the `Has_Arithmetic` concept.
+```cpp
+template<typename M, typename T>
+concept Matrix_Like = requires(M m) {
+    {m.data} -> Can_Share<T>;
+    {m.shape()} -> std::same_as<Shape>;
+    {m.order()} -> std::same_as<Order>;
+    {m.strides()} -> std::same_as<Strides>;
+    {m.size()} -> std::same_as<int>;
+    Has_Arithmetic<T>;
+};
+```
+
+### `Abstract_Matrix_Transformer`
+
+An `Abstract_Matrix_Transformer` is a base class that transforms on matrices inherit from. An `Abstract_Matrix_Transformer` accepts
+a given input shape and produces a given output shape. More detail on these types is included in the discussion of
+`Multichannel_Matrix<...>`. The input is coerced to be deep const and then passed to an implementation of the transform that
+accepts a deep const matrix.
+
+```cpp
+template<Has_Arithmetic T, Has_Arithmetic U, int Channels>
+class Abstract_Matrix_Transformer {
+private:
+    virtual int transform_impl(const Multichannel_Matrix<T, Channels, const_vector_t>& in, Multichannel_Matrix<U, Channels> out) = 0;
+public:
+    const Shape input_shape;
+    const Shape output_shape;
+    
+    const std::size_t input_size;
+    const std::size_t output_size;
+
+    ...
+
+    template<Matrix_Like<T> M_T>
+    int transform(M_T& in, Multichannel_Matrix<U, Channels> out){
+        Multichannel_Matrix<T, Channels, const_vector_t> in_mat = Multichannel_Matrix<T, Channels, const_vector_t>::as_matrix(in);
+
+        return transform_impl(in_mat, out);
+    }
+}
+```
+
+The deep const coercion works by creating a new matrix mirroring the `Matrix_Like` input, but with `const_vector_t` as the container type.
+This allows the template function `transform<...>(...)` to accept both deep const input and non-const input while the implementation
+only receives deep const input. The implementation is declared private as it is not a useful public interface.
+
+A const reference is used to pass the value to `transform_impl(...)` so that the compiler will use the `const` version of any overloaded
+methods. This also means that `transform_impl(...)` will not own a reference to the shared pointer which could introduce concern. The
+implementation function relies on the wrapping function to continue owning a reference to the shared pointer so that the matrix will remain
+valid. An issue could arise if the implementation stores a copy of the matrix reference without also storing the shared pointer seperatedly. This
+is however disregarded as being bad code that is not worth consideration as of now.
+
+### `Multichannel_Matrix`
+
+```cpp
+template<Has_Arithmetic T, int Channels, template<typename> typename Container = std::vector>
 class Multichannel_Matrix {
 private:
     std::shared_ptr<std::vector<T>> data;
@@ -83,6 +206,7 @@ private:
 }
 ```
 
+
 A multichannel matrix is a 3 dimensional matrix that is treated as a 2-D matrix with an additional "channel" dimension.
 The channel dimension is intended to represent things like the color channel in an image i.e. for RGB each color is a seperate channel.
 
@@ -90,17 +214,22 @@ Public read-only variables follow the convention of appending an underscore to t
 providing a getter which follows the same name (`foo()`). Fields are not declared `const` in order to make matrices trivially constructable and 
 freely assignable.
 
+
 **Current Work:**
 
 1. Chroma subsampling will generate jagged multichannelmatrices so support for jagged matrices should be added. Partial support should be 
 sufficient because the 2D submatrix for a given channel will not be jagged. Jaggedness will be introduced because the submatrix for each
-channel might not be equal.
+channel might not be equal. Another approach would be to instead use 3 single channel matrices to avoid the definition of multichannel matrix
+from getting too convoluted.
 
-2. A method for functions which accept a multichannel matrix to coerce deep const. It is desirable for a function to specify that it will
-not modify any data in a matrix it takes as a parameter, but `Multichannel_Matrix<T>` cannot be coerced to `Multichannel_Matrix<const T>`.
-This issue is discussed [in this blog](https://brevzin.github.io/c++/2021/09/10/deep-const/).
+#### Template Parameters
 
+1. `Has_Arithmetic T` is the type of each element stored in the underlying container.
 
+2. `int Channel` the number of channels in the multichannel matrix.
+
+3. `template<typename> typename Container = std::vector` the container in which to store the underlying data. This is taken as a
+`template template` (a template passed to another template) which is later used to create the type `Container<T>`.
 
 #### Data: `std::shared_ptr<std::vector<T>> data`
 The underlying data is contained in a vector that is wrapped in a `std::shared_ptr` to provide support for matrices to point at the same data.
@@ -110,7 +239,7 @@ Data is accessed using the `T& index(...)` methods which provide a reference to 
 
 The shape of the 2D matrices that make up each channel of a `Multichannel_Matrix` is stored in a `struct Shape`. A simple struct is used to
 package the fields together.
-```
+```cpp
 struct Shape {
     int m; // m=height=# of rows
     int n; // n=width=# of cols
@@ -125,7 +254,7 @@ For convenience, `static const` instances are provided for common arrangements s
 `{Dimension::ROW, Dimension::Column, Dimension::Channel}`. `Order::ROW_COL_CH` corresponds to a contiguous series of row major matrices with
 one row major matrix for each channel. First an entire row is stored. Once enough entire rows have been stored to complete the columns for the
 included rows, then the process is repeated for the next channel.
-```
+```cpp
 struct Order {
     Dimension first;
     Dimension second;
@@ -157,7 +286,7 @@ A `Strides` struct stores the offset between consecutive elements in a given dim
 is created and is used for indexing i.e. when indexing `Multichannel_Matrix<T> mcm`, `mcm.index(i,j,k)` will return a reference to the element
 at position `i*strides_.row + j*strides_.col + k*strides_.ch`.
 
-```
+```cpp
 struct Strides {
     int row;
     int col;

@@ -25,8 +25,8 @@ namespace mat {
         return identity;
 
     }
-    template<typename T, size_t Extent1, size_t Extent2, template<typename> class Container1, template<typename> class Container2>
-    Matrix<T> multiply(Matrix<T, Container1, Extent1> m1, Matrix<T, Container2, Extent2> m2) {
+    template<typename T, template<typename> class Container1, template<typename> class Container2>
+    Matrix<T> multiply(Matrix<T, Container1> m1, Matrix<T, Container2> m2) {
         assert(m1.shape().n && m1.shape().n == m2.shape().m); // no reason to have an exception that gets handled, bad matrix multiplication is bad code and not an exceptional case
 
         Matrix<T> product({m1.shape().m, m2.shape().n});
@@ -47,10 +47,10 @@ namespace mat {
     }
 
 
-    template<typename T, int Channels, size_t Extent>
-    int transform_channels(Multichannel_Matrix<T, Channels, Extent, const_vector_t> input,
+    template<typename T, int Channels, template<typename> class Container1, template<typename> class Container2>
+    int transform_channels(const Multichannel_Matrix<T, Channels, Container1>& input,
             Multichannel_Matrix<T, 1> transform,
-            Multichannel_Matrix<T, Channels, Extent> output) {
+            Multichannel_Matrix<T, Channels, Container2> output) {
         
         // ensure transform is a square matrix and output is of sufficient size
         if(transform.shape().m != Channels || transform.shape().n != Channels || input.size() != output.size()){
@@ -63,8 +63,7 @@ namespace mat {
         for(int i = 0; i < input.shape().m; i++) {
             for(int j = 0; j < input.shape().n; j++) {
                 for(int ch = 0; ch < Channels; ch++) {
-                    const T& data = input.cindex(i, j, ch); // fetch data for pixel
-                    pixel_mat.index(ch, 0) = data; 
+                    pixel_mat.index(ch, 0) = input.index(i, j, ch); // fetch data for pixel; 
                 }
  
                 Matrix<T> product = mat::multiply(transform, pixel_mat);

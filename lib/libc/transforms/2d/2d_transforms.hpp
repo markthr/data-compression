@@ -21,11 +21,11 @@
 // needs to be declared before ycbcr transformer
 #include "matrix_operations.hpp"
 
-template<Has_Arithmetic T, Has_Arithmetic U, int Channels, std::size_t Extent = std::dynamic_extent>
+template<Has_Arithmetic T, Has_Arithmetic U, int Channels>
 class Abstract_Matrix_Transformer {
 private:
-    virtual int transform_impl(Multichannel_Matrix<T, Channels, Extent, const_vector_t> in, Multichannel_Matrix<U, Channels, Extent> out) = 0;
-    virtual int inverse_impl(Multichannel_Matrix<U, Channels, Extent, const_vector_t> in, Multichannel_Matrix<T, Channels, Extent> out) = 0;
+    virtual int transform_impl(const Multichannel_Matrix<T, Channels, const_vector_t>& in, Multichannel_Matrix<U, Channels> out) = 0;
+    virtual int inverse_impl(const Multichannel_Matrix<U, Channels, const_vector_t>& in, Multichannel_Matrix<T, Channels> out) = 0;
 public:
     const Shape input_shape;
     const Shape output_shape;
@@ -39,7 +39,7 @@ public:
             output_shape(output_shape), output_size(output_shape.m * output_shape.n * 3) {}
     
     Abstract_Matrix_Transformer(const Shape shape)
-            : Abstract_Matrix_Transformer<T, U, Channels, Extent>(shape, shape) {}
+            : Abstract_Matrix_Transformer<T, U, Channels>(shape, shape) {}
     
     
 
@@ -48,14 +48,14 @@ public:
      *  Return 0 if successful, -1 otherwise
      */
     template<Matrix_Like<T> M_T>
-    int transform(M_T& in, Multichannel_Matrix<U, Channels, Extent> out){
-        Multichannel_Matrix<T, Channels, Extent, const_vector_t> in_mat = Multichannel_Matrix<T, Channels, Extent, const_vector_t>::as_matrix(in);
+    int transform(M_T& in, Multichannel_Matrix<U, Channels> out){
+        Multichannel_Matrix<T, Channels, const_vector_t> in_mat = Multichannel_Matrix<T, Channels, const_vector_t>::as_matrix(in);
 
         return transform_impl(in_mat, out);
     }
     template<Matrix_Like<U> M_U>
-    int inverse(M_U& in, Multichannel_Matrix<T, Channels, Extent> out) {
-        Multichannel_Matrix<U, Channels, Extent, const_vector_t> in_mat = Multichannel_Matrix<U, Channels, Extent, const_vector_t>::as_matrix(in);
+    int inverse(M_U& in, Multichannel_Matrix<T, Channels> out) {
+        Multichannel_Matrix<U, Channels, const_vector_t> in_mat = Multichannel_Matrix<U, Channels, const_vector_t>::as_matrix(in);
 
         return inverse_impl(in_mat, out);
     }
@@ -77,8 +77,8 @@ public:
     static const int Channels = 3;
 private:
     // indicate override of pure virtual signature
-    int transform_impl(Image_Matrix<T, const_vector_t> in, Image_Matrix<T> out) override;
-    int inverse_impl(Image_Matrix<T, const_vector_t> in, Image_Matrix<T> out) override;
+    int transform_impl(const Image_Matrix<T, const_vector_t>& in, Image_Matrix<T> out) override;
+    int inverse_impl(const Image_Matrix<T, const_vector_t>& in, Image_Matrix<T> out) override;
 public:
     const float k_r;
     const float k_g;
