@@ -1,6 +1,8 @@
 #ifndef __IMAGE_FILE_IO_IMPL_H__
 #define __IMAGE_FILE_IO_IMPL_H__
 
+#include <charconv>
+#include <fstream>
 #include "image_file_io.hpp"
 
 template<Has_Arithmetic T>
@@ -21,8 +23,7 @@ Image_Matrix<T> img::read_img_csv(std::string path, Shape shape, Order order, ch
             while(left != line.end()) {
                 if(right == line.end() || *right == delim) {
                     double val;
-                    std::string_view sv(left, right); 
-                    std::from_chars(sv.begin(), sv.end(), val);
+                    std::from_chars(&(*left), &(*right), val);
                     image.index(n++) = val;
                     
                     if(right != line.end()) {

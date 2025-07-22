@@ -4,7 +4,6 @@
 #include "2d_transforms.hpp"
 #include <memory>
 #include <utility>
-#include <span>
 #include <initializer_list>
 #include <cassert>
 
@@ -69,10 +68,30 @@ concept Matrix_Like = requires(M m) {
     Has_Arithmetic<T>;
 };
 
-
-template<Has_Arithmetic T, int Channels, template<typename> typename Container = std::vector>
-class Multichannel_Matrix {
+template<Has_Arithmetic T, int Channels>
+class Abstract_Contiguous_MCM {
 private:
+    // following the convention of using _ as a suffix for internal variables
+    Shape shape_;
+    Order order_;
+    Strides strides_;
+    int size_; // equals shape.n*shape.m*Channels
+
+
+protected:
+    /**
+     * Internal constructor that other constructors delegate to
+     * 
+     * TODO: Should the assert be switched to a throw?
+     */
+    Abstract_Contiguous_MCM(Shape shape, Strides strides, Order order)
+        : shape_(shape), order_(order), size_(shape.m*shape.n*Channels), strides_(strides) {}
+    
+    /**
+     * Make trivially constructable
+     */
+    Abstract_Contiguous_MCM() {}
+    
     /**
      * Used to compute the strides for a matrix.
      * This is used each time Shape is set either in a constructor or via reshape(...) and the result is saved in the strides_ field.
@@ -80,6 +99,65 @@ private:
     static Strides compute_strides(Shape shape, Order order);
     static Order swap_row_col(Order order);
 
+public:
+    // Getters
+    Shape shape() const {return this->shape_;}
+    Strides strides() const {return this->strides_;}
+    Order order() const {return this->order_;}
+    int size() const {return this->size_;}
+
+    /**
+     * Data reformatting methods
+     * 
+     * TODO: is there a better name for these? is there a better way to handle data copying?
+     * 
+     * TODO: it is desirable to have a version that returns a new matrix and an inplace version
+     * Is there a way to have the version which returns a new matrix in the abstract class that isn't terrible?
+     */
+    void reshape(Shape shape) {
+        // TODO: keep assert or switch to throwing?
+        assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
+
+        this->shape_ = shape;
+        this->strides_ = compute_strides(this->shape_, this->order_);
+    }
+
+    void transpose() {
+        this->shape_ = {this->shape_.n, this->shape_.m}; // swap components of Shape
+        this->order_ = swap_row_col(this->order_);
+        this->strides_ = compute_strides(this->shape_, this->order_);
+    }
+    /**
+     * Data access methods
+     * 
+     * Currently using static_assert instead of full template specialization to avoid identical declarations
+     * TODO: is there a better alternative?
+     * 
+     * Pure virtual operator[] methods must be overridden by inheriting classes. Other data access methods delegate access to
+     * the pure virtual methods.
+     * 
+     * Declared as operator[] instead of an overload of index to avoid having to manually include a using statement
+     * in inheriting classes.
+     */
+    virtual const T& index(int i) const = 0;
+    // virtual const T index(int i) const = 0; TODO: this does not work
+
+    // 3 index access for channels=1 allows a function to iterate over data across any number of channels (greater than 0) the same
+    const T& index(int i, int j, int k) const {
+        return this->index(i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch);
+    }
+
+    // only enabled for Channels=1
+    const T& index(int i, int j) const {
+        static_assert(Channels == 1);
+        return this->index(i * this->strides_.row + j * this->strides_.col);
+    }
+
+    // TODO: perhaps also include at(...) variant with bounds checking
+};
+
+template<Has_Arithmetic T, int Channels, template<typename> typename Container = std::vector>
+class Multichannel_Matrix : public Abstract_Contiguous_MCM<T, Channels>{
 public:
     // declared public so concepts can access it because concepts cannot be declare friends so no private access
     std::shared_ptr<Container<T>> data;
@@ -97,7 +175,7 @@ private:
      * If data.size() does not equal shape.m*shape.n * Channels then the underlying vector will be resized
      */
     Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH)
-        : data(data), shape_(shape), order_(order), size_(shape.m*shape.n*Channels), strides_(strides) {}
+        : Abstract_Contiguous_MCM<T, Channels>(shape, strides, order), data(data) {}
 public:
 // Constructors
 
@@ -105,8 +183,10 @@ public:
      * Constructor for initializing data based an an initializer list. A std::initializer_list is used in order to be able to pass the
      * list through functions.
      */
-    Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(data)), shape, compute_strides(shape, order), order) {
+     Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH)
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(data)), shape,
+                Abstract_Contiguous_MCM<T, Channels>::compute_strides(shape, order), order) 
+        {
 
         if((this->data)->size() != this->size()) {
             (this->data)->resize(this->size());
@@ -117,13 +197,15 @@ public:
      * Constructor for creating a matrix of all zeros.
      */
     Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, compute_strides(shape, order), order) {}
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape,
+                Abstract_Contiguous_MCM<T, Channels>::compute_strides(shape, order), order) 
+        {}
     
     /**
      * Shallow copy constructor
      */
     Multichannel_Matrix(const Multichannel_Matrix<T, Channels, Container>& other) 
-        : Multichannel_Matrix(other.data, other.shape_, other.strides_, other.order_) {}
+        : Multichannel_Matrix(other.data, other.shape(), other.strides(), other.order()) {}
 
     /**
      * Converter
@@ -137,12 +219,6 @@ public:
 
         return Multichannel_Matrix<T, Channels, Container>(m.data, m.shape(), m.strides(), m.order());
     }
-    
-// Getters
-    Shape shape() const {return this->shape_;}
-    Strides strides() const {return this->strides_;}
-    Order order() const {return this->order_;}
-    int size() const {return this->size_;} // TODO: should size be m*n or m*n*channels    
 
     /**
      * Creates an empty matrix that is considered 0 x 0 
@@ -154,59 +230,48 @@ public:
 // Indexing methods
 // TODO: is there a better name for this operator? Is there a way to avoid having to write both const and non const version?
     T& index(int i, int j, int k) {
-        return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
-    }
-    const T& index(int i, int j, int k) const {
-        return (*this->data)[i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch];
+        return (*this->data)[i * this->strides().row + j * this->strides().col + k * this->strides().ch];
     }
 
     // only enabled for Channels=1
     T& index(int i, int j) {
         static_assert(Channels == 1);
-        return (*this->data)[i * this->strides_.row + j * this->strides_.col];
-    }
-    const T& index(int i, int j) const {
-        static_assert(Channels == 1);
-        return (*this->data)[i * this->strides_.row + j * this->strides_.col];
+        return (*this->data)[i * this->strides().row + j * this->strides().col];
     }
 
     // direct index on underlying contiguous memory, perhaps use [] instead here or add it and support both?
     T& index(int i) {return (*this->data)[i];}
-    const T& index(int i) const {return (*this->data)[i];}
+    const T& index(int i) const override {return (*this->data)[i];}
+    using Abstract_Contiguous_MCM<T, Channels>::index;
 
-// Data reformatting
+    /** 
+     * Data reformatting
+     * 
+     * TODO: should overloading be used instead so that transpose/reshape can be called on const matrices
+     */ 
     Multichannel_Matrix<T, Channels, Container> reshape(Shape shape, bool inplace = false) {
-        assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
-
-        if(inplace) {
-            this->shape_ = shape;
-            this->strides_ = compute_strides(this->shape_, this->order_);
+        if(!inplace) {
+            this->Abstract_Contiguous_MCM<T, Channels>::reshape(shape);
             return *this;
         }
         else {
             // TODO: does the default move constructor work instead?
             // also worth considering if it is worth adding another constructor to avoid calculating strides twice here
-            Multichannel_Matrix<T, Channels> new_mat(*this);
-            new_mat.shape_ = shape;
-            new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
+            Multichannel_Matrix<T, Channels, Container> new_mat(*this);
+            new_mat.Abstract_Contiguous_MCM<T, Channels>::reshape(shape);
             return new_mat;
         }
     }
 
+    // see discussion in reshape(...) for more on design decisions
     Multichannel_Matrix<T, Channels, Container> transpose(bool inplace = false) {
-        if(inplace) {
-            this->shape_ = {this->shape_.n, this->shape_.m}; // swap components of Shape
-            this->order_ = swap_row_col(this->order_);
-            this->strides_ = compute_strides(this->shape_, this->order_);
+    if(!inplace) {
+            this->Abstract_Contiguous_MCM<T, Channels>::transpose();
             return *this;
         }
         else {
-            // TODO: does the default move constructor work instead?
-            Multichannel_Matrix<T, Channels> new_mat(*this);
-            new_mat.shape_ = {this->shape_.n, this->shape_.m};
-            new_mat.order_ = swap_row_col(this->order_);
-            new_mat.strides_ = compute_strides(new_mat.shape_, new_mat.order_);
-            
+            Multichannel_Matrix<T, Channels, Container> new_mat(*this);
+            new_mat.Abstract_Contiguous_MCM<T, Channels>::transpose();
             return new_mat;
         }
     }
@@ -221,19 +286,12 @@ using Matrix = Multichannel_Matrix<T, 1, Container>;
 template<Has_Arithmetic T, template<typename> class Container = std::vector>
 using Image_Matrix = Multichannel_Matrix<T, 3, Container>;
 
+/**
+ * 
+ */
 
-
-
-
-// template<typename T, int Channels, std::size_t Extent>
-// Matrix<T> Multichannel_Matrix<T, Channels, Extent>::channel(int k) {
-//     return Multichannel_Matrix<T, 1>((*this->data).subspan(this->strides_.ch * k, this->strides_.ch));
-// }
-
-
-
-template<Has_Arithmetic T, int Channels, template<typename> class Container>
-Strides Multichannel_Matrix<T, Channels, Container>::compute_strides(Shape shape, Order order) {
+template<Has_Arithmetic T, int Channels>
+Strides Abstract_Contiguous_MCM<T, Channels>::compute_strides(Shape shape, Order order) {
     // ensure dimensions are not repeated in the ordering
     assert(order.first != order.second && order.first != order.third && order.second != order.third); 
     Strides strides;
@@ -264,8 +322,8 @@ Strides Multichannel_Matrix<T, Channels, Container>::compute_strides(Shape shape
  * 
  * It is assumed that a valid order is supplied
  */
-template<Has_Arithmetic T, int Channels, template<typename> class Container>
-Order Multichannel_Matrix<T, Channels, Container>::swap_row_col(Order order) {
+template<Has_Arithmetic T, int Channels>
+Order Abstract_Contiguous_MCM<T, Channels>::swap_row_col(Order order) {
 
     const int n_dim = 3;
     Dimension dims[n_dim] = {order.first, order.second, order.third};
