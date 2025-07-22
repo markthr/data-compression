@@ -9,6 +9,7 @@
 
 // TODO: is there a better way of handling this import?
 #include "../transforms/2d/2d_transforms.hpp"
+#include "image_file_io.hpp"
 
 /**
  * Simple assertions to verify that transform matrices are set correctly
@@ -44,46 +45,17 @@ TEST(YCbCrTest, TransformMatrices) {
 
 TEST(YCbCrTest, IdentityTransforms) {
     const float ERR = 1e-4;
-    const char DELIM = ',';
     const Shape SHAPE{327, 223};
     const int CHANNELS = 3;
     const int SIZE = SHAPE.m * SHAPE.n * CHANNELS;
-    std::ifstream file("data/orioles_mascot_cropped.csv");
-    EXPECT_TRUE(file.is_open()) << "Unable to locate test data";
 
-    // TODO: package the CSV parsing into a function and make the data available across tests
-    Image_Matrix<float> image(SHAPE, Order::CH_ROW_COL);
-    std::string line;
-    if(file.is_open()) {
-        int n = 0;
-        while(std::getline(file, line)) {
-            auto left = line.begin();
-            auto right = left + 1; // assuming line is not empty
-            while(left != line.end()) {
-                if(right == line.end() || *right == DELIM) {
-                    double val;
-                    std::string_view sv(left, right); 
-                    std::from_chars(sv.begin(), sv.end(), val);
-                    image.index(n++) = val;
-                    
-                    if(right != line.end()) {
-                        // skip past delim
-                        left = ++right;
-                    }
-                    else {
-                        // set exit condition
-                        left = right;
-                    }
-                }
-                
-                if(right != line.end()) {
-                    right++;
-                }
-            }
-        }
+    auto image = img::read_img_csv<float>("data/orioles_mascot_cropped.csv", SHAPE, Order::CH_ROW_COL);
 
-        EXPECT_EQ(n, SIZE) << "Failed to parse test data";
-        file.close();
+    if(image.size() == 0) {
+        FAIL() << "Unable to open test data";
+    }
+    else {
+        EXPECT_EQ(image.size(), SIZE) << "Failed to parse test data";
         
         Image_Matrix<float> transformed(SHAPE, Order::CH_ROW_COL);
         Image_Matrix<float> output(SHAPE, Order::CH_ROW_COL);

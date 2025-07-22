@@ -6,6 +6,7 @@
 #include <utility>
 #include <span>
 #include <initializer_list>
+#include <cassert>
 
 struct Shape {
     int m; // m=height=# of rows
