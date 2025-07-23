@@ -18,14 +18,14 @@ TEST(YCbCrTest, TransformMatrices) {
     std::array<float, size> exp_forward  = {0.299, 0.587, 0.114, -0.168736, -0.331264, 0.5, 0.5, -0.418688, -0.081312};
 
     for(int k = 0; k < size; k++) {
-        EXPECT_NEAR(exp_forward[k], ytr.transform_matrix.index(k), ERR) << "Coeffs not equal at index: " << k;
+        EXPECT_NEAR(exp_forward[k], ytr.transform_matrix[k], ERR) << "Coeffs not equal at index: " << k;
     }
 
     auto identity = mat::multiply(ytr.inverse_matrix, ytr.transform_matrix);
     auto exp_identity = mat::eye<float>(3);
 
     for(int k = 0; k < size; k++) {
-        EXPECT_NEAR(exp_identity.index(k), identity.index(k), ERR) << "Coeffs not equal at index: " << k;
+        EXPECT_NEAR(exp_identity[k], identity[k], ERR) << "Coeffs not equal at index: " << k;
     }
 
     const int CHANNELS = 3;
@@ -34,7 +34,7 @@ TEST(YCbCrTest, TransformMatrices) {
     Matrix<double> product = mat::multiply(ytr.transform_matrix, pixel_mat);
 
     for(int k = 0; k < CHANNELS; k++) {
-        EXPECT_NEAR(exp_product[k], product.index(k), ERR) << "Product not equal at index: " << k;
+        EXPECT_NEAR(exp_product[k], product[k], ERR) << "Product not equal at index: " << k;
     }
 }
 
@@ -69,8 +69,8 @@ TEST(YCbCrTest, IdentityTransforms) {
         EXPECT_FALSE(ycbcr.inverse(transformed, output))  << "Inverse transform failed";
 
         for(int n = 0; n < image.size(); n++) {
-            if(std::abs(image.index(n) - output.index(n)) > ERR) {
-                EXPECT_NEAR(image.index(n), output.index(n), ERR) << "Transformed value not equal at index: " << n;
+            if(std::abs(image[n] - output[n]) > ERR) {
+                EXPECT_NEAR(image[n], output[n], ERR) << "Transformed value not equal at index: " << n;
                 break;
             }
         }

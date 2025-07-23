@@ -24,7 +24,7 @@ Image_Matrix<T> img::read_img_csv(std::string path, Shape shape, Order order, ch
                 if(right == line.end() || *right == delim) {
                     double val;
                     std::from_chars(&(*left), &(*right), val);
-                    image.index(n++) = val;
+                    image[n++] = val;
                     
                     if(right != line.end()) {
                         // skip past delim

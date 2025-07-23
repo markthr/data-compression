@@ -16,7 +16,7 @@ TEST(MultichannelMatrixTest, reshape) {
     Matrix<int> mat2_expected(data1, shape2);
 
     for(int i = 0; i < data1.size(); i++) {
-        EXPECT_EQ(mat1.index(i), mat2.index(i)) << " at index: " << i << ", reshape() should not change underlying data";
+        EXPECT_EQ(mat1[i], mat2[i]) << " at index: " << i << ", reshape() should not change underlying data";
     }
 
     for(int i = 0; i < shape2.m; i++) {

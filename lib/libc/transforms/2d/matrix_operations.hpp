@@ -15,7 +15,7 @@ namespace mat {
         // TODO: make sure size=0 is supported
 
         Multichannel_Matrix<T, Channels> identity({size, size}, order);
-        identity.index(0) = 1;
+        identity[0] = 1;
         for(int k = 0; k < Channels; k++) {
             for(int i = 0; i < size; i++) {
                 identity.index(i, i, k) = 1;
@@ -36,9 +36,9 @@ namespace mat {
                 // currently assuming row major for output
                 int index = m1_i * m2.shape().n + m2_j;
                 // m1 * m2 has shape (m1.shape().m, m2.shape.n())
-                product.index(index) = m1.index(m1_i, 0, 0) * m2.index(0, m2_j, 0);
+                product[index] = m1.index(m1_i, 0, 0) * m2.index(0, m2_j, 0);
                 for(int k = 1; k < m1.shape().n; k++) {
-                    product.index(index) += m1.index(m1_i, k, 0) * m2.index(k, m2_j, 0);
+                    product[index] += m1.index(m1_i, k, 0) * m2.index(k, m2_j, 0);
                 }
             }
         }
@@ -70,7 +70,7 @@ namespace mat {
 
                 // TODO: his can be optimized to combine the loops, is this worth optimizing?
                 for(int ch = 0; ch < Channels; ch++) {
-                    output.index(i, j, ch) = product.index(ch); // save result from transformed pixel
+                    output.index(i, j, ch) = product[ch]; // save result from transformed pixel
                 }
             }   
         }

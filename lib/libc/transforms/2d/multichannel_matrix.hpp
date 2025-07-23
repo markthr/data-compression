@@ -6,6 +6,7 @@
 #include <utility>
 #include <initializer_list>
 #include <cassert>
+#include <type_traits>
 
 struct Shape {
     int m; // m=height=# of rows
@@ -30,8 +31,15 @@ struct Order {
 constexpr Order Order::ROW_COL_CH = {Dimension::ROW, Dimension::COLUMN, Dimension::CHANNEL};
 constexpr Order Order::CH_ROW_COL = {Dimension::CHANNEL, Dimension::ROW, Dimension::COLUMN};
 
+template<typename From, typename To>
+struct Propagate_Const {typedef To type;};
+template<typename From, typename To>
+struct Propagate_Const<const From, To> {typedef std::add_const<To>::type type;};
+template<typename From, typename To>
+using Propagate_Const_t = Propagate_Const<From, To>::type;
 
-
+template<typename From, typename To>
+using Propagate_Const_V = Propagate_Const<From, To>::value;
 /**
  * Represents the number of offsets in the underlying array-like data to traverse to the next element along a dimension
  * 
@@ -139,25 +147,46 @@ public:
      * Declared as operator[] instead of an overload of index to avoid having to manually include a using statement
      * in inheriting classes.
      */
-    virtual const T& index(int i) const = 0;
-    // virtual const T index(int i) const = 0; TODO: this does not work
+    virtual const T& operator[] (int i) const = 0;
+    virtual T& operator[] (int i) = 0; // TODO: this does not work
 
     // 3 index access for channels=1 allows a function to iterate over data across any number of channels (greater than 0) the same
     const T& index(int i, int j, int k) const {
-        return this->index(i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch);
+        return this->operator[](i * this->strides_.row + j * this->strides_.col + k * this->strides_.ch);
+    }
+
+    T& index(int i, int j, int k) {
+        return this->operator[](i * this->strides().row + j * this->strides().col + k * this->strides().ch);
+    }
+
+
+    /**
+     * only enabled for Channels=1
+     * 
+     * TODO: switch to using a better method of having conditional member functions
+     * https://brevzin.github.io/c++/2021/11/21/conditional-members/
+     * 
+     */
+    const T& index(int i, int j) const {
+        static_assert(Channels == 1);
+        return this->operator[](i * this->strides_.row + j * this->strides_.col);
     }
 
     // only enabled for Channels=1
-    const T& index(int i, int j) const {
+    T& index(int i, int j) {
         static_assert(Channels == 1);
-        return this->index(i * this->strides_.row + j * this->strides_.col);
+        return this->operator[](i * this->strides().row + j * this->strides().col);
     }
 
     // TODO: perhaps also include at(...) variant with bounds checking
 };
 
 template<Has_Arithmetic T, int Channels, template<typename> typename Container = std::vector>
-class Multichannel_Matrix : public Abstract_Contiguous_MCM<T, Channels>{
+class Multichannel_Matrix : public Abstract_Contiguous_MCM<Propagate_Const_t<Container<T>, T>, Channels>{
+private:
+    using T_CV = Propagate_Const_t<Container<T>, T>;
+    using Parent = Abstract_Contiguous_MCM<T_CV, Channels>;
+
 public:
     // declared public so concepts can access it because concepts cannot be declare friends so no private access
     std::shared_ptr<Container<T>> data;
@@ -175,7 +204,7 @@ private:
      * If data.size() does not equal shape.m*shape.n * Channels then the underlying vector will be resized
      */
     Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH)
-        : Abstract_Contiguous_MCM<T, Channels>(shape, strides, order), data(data) {}
+        : Parent(shape, strides, order), data(data) {}
 public:
 // Constructors
 
@@ -185,7 +214,7 @@ public:
      */
      Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH)
         : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(data)), shape,
-                Abstract_Contiguous_MCM<T, Channels>::compute_strides(shape, order), order) 
+                Parent::compute_strides(shape, order), order) 
         {
 
         if((this->data)->size() != this->size()) {
@@ -198,7 +227,7 @@ public:
      */
     Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH)
         : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape,
-                Abstract_Contiguous_MCM<T, Channels>::compute_strides(shape, order), order) 
+                Parent::compute_strides(shape, order), order) 
         {}
     
     /**
@@ -229,20 +258,12 @@ public:
 
 // Indexing methods
 // TODO: is there a better name for this operator? Is there a way to avoid having to write both const and non const version?
-    T& index(int i, int j, int k) {
-        return (*this->data)[i * this->strides().row + j * this->strides().col + k * this->strides().ch];
-    }
 
-    // only enabled for Channels=1
-    T& index(int i, int j) {
-        static_assert(Channels == 1);
-        return (*this->data)[i * this->strides().row + j * this->strides().col];
-    }
 
     // direct index on underlying contiguous memory, perhaps use [] instead here or add it and support both?
-    T& index(int i) {return (*this->data)[i];}
-    const T& index(int i) const override {return (*this->data)[i];}
-    using Abstract_Contiguous_MCM<T, Channels>::index;
+    T_CV& operator[] (int i) override {return (*this->data)[i];}
+    const T_CV& operator[] (int i) const override {return (*this->data)[i];}
+    using Parent::index;
 
     /** 
      * Data reformatting
@@ -251,14 +272,14 @@ public:
      */ 
     Multichannel_Matrix<T, Channels, Container> reshape(Shape shape, bool inplace = false) {
         if(!inplace) {
-            this->Abstract_Contiguous_MCM<T, Channels>::reshape(shape);
+            this->Parent::reshape(shape);
             return *this;
         }
         else {
             // TODO: does the default move constructor work instead?
             // also worth considering if it is worth adding another constructor to avoid calculating strides twice here
             Multichannel_Matrix<T, Channels, Container> new_mat(*this);
-            new_mat.Abstract_Contiguous_MCM<T, Channels>::reshape(shape);
+            new_mat.Parent::reshape(shape);
             return new_mat;
         }
     }
@@ -266,12 +287,12 @@ public:
     // see discussion in reshape(...) for more on design decisions
     Multichannel_Matrix<T, Channels, Container> transpose(bool inplace = false) {
     if(!inplace) {
-            this->Abstract_Contiguous_MCM<T, Channels>::transpose();
+            this->Parent::transpose();
             return *this;
         }
         else {
             Multichannel_Matrix<T, Channels, Container> new_mat(*this);
-            new_mat.Abstract_Contiguous_MCM<T, Channels>::transpose();
+            new_mat.Parent::transpose();
             return new_mat;
         }
     }
