@@ -11,6 +11,8 @@
 struct Shape {
     int m; // m=height=# of rows
     int n; // n=width=# of cols
+
+    inline int size() const {return m * n;}
 };
 
 enum class Dimension {
@@ -38,8 +40,6 @@ struct Propagate_Const<const From, To> {typedef std::add_const<To>::type type;};
 template<typename From, typename To>
 using Propagate_Const_t = Propagate_Const<From, To>::type;
 
-template<typename From, typename To>
-using Propagate_Const_V = Propagate_Const<From, To>::value;
 /**
  * Represents the number of offsets in the underlying array-like data to traverse to the next element along a dimension
  * 
@@ -93,7 +93,10 @@ protected:
      * TODO: Should the assert be switched to a throw?
      */
     Abstract_Contiguous_MCM(Shape shape, Strides strides, Order order)
-        : shape_(shape), order_(order), size_(shape.m*shape.n*Channels), strides_(strides) {}
+        : shape_(shape), order_(order), size_(shape.size() * Channels), strides_(strides) {}
+
+    Abstract_Contiguous_MCM(Shape shape, Order order)
+        : Abstract_Contiguous_MCM<T, Channels>(shape, compute_strides(shape, order), order) {}
     
     /**
      * Make trivially constructable
@@ -124,7 +127,7 @@ public:
      */
     void reshape(Shape shape) {
         // TODO: keep assert or switch to throwing?
-        assert(this->shape().m * this->shape().n == shape.m * shape.n); // ensure size does not change
+        assert(this->shape().size() == shape.size()); // ensure size does not change
 
         this->shape_ = shape;
         this->strides_ = compute_strides(this->shape_, this->order_);
@@ -185,26 +188,24 @@ template<Has_Arithmetic T, int Channels, template<typename> typename Container =
 class Multichannel_Matrix : public Abstract_Contiguous_MCM<Propagate_Const_t<Container<T>, T>, Channels>{
 private:
     using T_CV = Propagate_Const_t<Container<T>, T>;
-    using Parent = Abstract_Contiguous_MCM<T_CV, Channels>;
+    using Abstract_MCM_t = Abstract_Contiguous_MCM<T_CV, Channels>;
 
 public:
     // declared public so concepts can access it because concepts cannot be declare friends so no private access
     std::shared_ptr<Container<T>> data;
 private:
-    // following the convention of using _ as a suffix for internal variables
-    Shape shape_;
-    Order order_;
-    Strides strides_;
-    int size_;
-    
+
     /**
      * Internal constructor, not currently intended to be able to manually specify strides. Strides should be set based
      * on the passed Order struct.
      * 
      * If data.size() does not equal shape.m*shape.n * Channels then the underlying vector will be resized
      */
-    Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Strides strides, Order order = Order::ROW_COL_CH)
-        : Parent(shape, strides, order), data(data) {}
+    Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Order order)
+        : Abstract_MCM_t(shape, order), data(data) {}
+
+    Multichannel_Matrix(std::shared_ptr<Container<T>> data, Shape shape, Strides strides, Order order)
+        : Abstract_MCM_t(shape, strides, order), data(data) {}
 public:
 // Constructors
 
@@ -213,12 +214,10 @@ public:
      * list through functions.
      */
      Multichannel_Matrix(std::initializer_list<T> data, Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(data)), shape,
-                Parent::compute_strides(shape, order), order) 
-        {
-
-        if((this->data)->size() != this->size()) {
-            (this->data)->resize(this->size());
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new Container<T>(data)), shape, order) {
+        // extend data if initializer list was smaller than matrix size
+        if(this->data->size() <= this->size()) {
+            this->data->resize(this->size());
         }
     }
     
@@ -226,9 +225,7 @@ public:
      * Constructor for creating a matrix of all zeros.
      */
     Multichannel_Matrix(Shape shape, Order order =  Order::ROW_COL_CH)
-        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape,
-                Parent::compute_strides(shape, order), order) 
-        {}
+        : Multichannel_Matrix(std::shared_ptr<Container<T>>(new std::vector<T>(shape.m*shape.n*Channels)), shape, order) {}
     
     /**
      * Shallow copy constructor
@@ -263,23 +260,28 @@ public:
     // direct index on underlying contiguous memory, perhaps use [] instead here or add it and support both?
     T_CV& operator[] (int i) override {return (*this->data)[i];}
     const T_CV& operator[] (int i) const override {return (*this->data)[i];}
-    using Parent::index;
+    using Abstract_MCM_t::index;
 
     /** 
      * Data reformatting
      * 
      * TODO: should overloading be used instead so that transpose/reshape can be called on const matrices
+     * Is there a "good" way to avoid writing the out of place version every time Abstract_Contiguous_MCM
+     * gets extended?
+     * Moving definition to parent class would have return type be a pointer or smart pointer because
+     * abstract types cannot be returned by value. Maybe CRTP or other templating would solve this but does
+     * that add needless complexity?
      */ 
     Multichannel_Matrix<T, Channels, Container> reshape(Shape shape, bool inplace = false) {
         if(!inplace) {
-            this->Parent::reshape(shape);
+            this->Abstract_MCM_t::reshape(shape);
             return *this;
         }
         else {
             // TODO: does the default move constructor work instead?
             // also worth considering if it is worth adding another constructor to avoid calculating strides twice here
             Multichannel_Matrix<T, Channels, Container> new_mat(*this);
-            new_mat.Parent::reshape(shape);
+            new_mat.Abstract_MCM_t::reshape(shape);
             return new_mat;
         }
     }
@@ -287,12 +289,12 @@ public:
     // see discussion in reshape(...) for more on design decisions
     Multichannel_Matrix<T, Channels, Container> transpose(bool inplace = false) {
     if(!inplace) {
-            this->Parent::transpose();
+            this->Abstract_MCM_t::transpose();
             return *this;
         }
         else {
             Multichannel_Matrix<T, Channels, Container> new_mat(*this);
-            new_mat.Parent::transpose();
+            new_mat.Abstract_MCM_t::transpose();
             return new_mat;
         }
     }
@@ -367,5 +369,7 @@ Order Abstract_Contiguous_MCM<T, Channels>::swap_row_col(Order order) {
     // could I forward the array instead?
     return {dims[0], dims[1], dims[2]};
 }
+
+#include "jagged_mcm.hpp"
 
 #endif
