@@ -241,7 +241,7 @@ public:
     static Multichannel_Matrix<T, Channels, Container> as_matrix(M& m) {
         
         // TODO: should this constructor be private? Should a different guard be used instead of assert?
-        assert(m.shape().m * m.shape().n * Channels == m.size());
+        assert(m.shape().size() * Channels == m.size());
 
         return Multichannel_Matrix<T, Channels, Container>(m.data, m.shape(), m.strides(), m.order());
     }

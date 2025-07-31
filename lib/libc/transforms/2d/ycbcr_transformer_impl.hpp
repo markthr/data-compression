@@ -8,7 +8,7 @@
 // TODO: is this verbosity okay? should it be chaned?
 template<typename T>
 YCbCr_Transformer<T>::YCbCr_Transformer(const Shape shape, float k_b, float k_r)
-        : Abstract_Matrix_Transformer<T, T, Channels>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
+        : Abstract_Invertible_MCM_Transformer<T, T, Channels>(shape), k_b(k_b), k_r(k_r), k_g(1 - k_b - k_r),
         transform_matrix({3, 3}), inverse_matrix({3, 3}) {
     
     // initialize values in the transform/inverse matrices

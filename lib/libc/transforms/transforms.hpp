@@ -13,10 +13,10 @@
  */
 template<typename T>
 concept Has_Arithmetic = requires(T t1, T t2) {
-    {t1 + t2} -> std::same_as<std::remove_cv_t<T>>;
-    {t1 - t2} -> std::same_as<std::remove_cv_t<T>>;
-    {t1 * t2} -> std::same_as<std::remove_cv_t<T>>;
-    {t1 / t2} -> std::same_as<std::remove_cv_t<T>>;
+    {t1 + t2} -> std::convertible_to<std::remove_cv_t<T>>;
+    {t1 - t2} -> std::convertible_to<std::remove_cv_t<T>>;
+    {t1 * t2} -> std::convertible_to<std::remove_cv_t<T>>;
+    {t1 / t2} -> std::convertible_to<std::remove_cv_t<T>>;
 };
 
 /**

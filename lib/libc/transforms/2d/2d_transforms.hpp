@@ -22,10 +22,9 @@
 #include "matrix_operations.hpp"
 
 template<Has_Arithmetic T, Has_Arithmetic U, int Channels>
-class Abstract_Matrix_Transformer {
+class Abstract_MCM_Transformer {
 private:
     virtual int transform_impl(const Multichannel_Matrix<T, Channels, const_vector_t>& in, Multichannel_Matrix<U, Channels> out) = 0;
-    virtual int inverse_impl(const Multichannel_Matrix<U, Channels, const_vector_t>& in, Multichannel_Matrix<T, Channels> out) = 0;
 public:
     const Shape input_shape;
     const Shape output_shape;
@@ -34,16 +33,14 @@ public:
     const std::size_t output_size;
     
 
-    Abstract_Matrix_Transformer(const Shape input_shape, const Shape output_shape)
+    Abstract_MCM_Transformer(const Shape input_shape, const Shape output_shape)
             : input_shape(input_shape), input_size(input_shape.m * input_shape.n * 3),
             output_shape(output_shape), output_size(output_shape.m * output_shape.n * 3) {}
     
-    Abstract_Matrix_Transformer(const Shape shape)
-            : Abstract_Matrix_Transformer<T, U, Channels>(shape, shape) {}
+    Abstract_MCM_Transformer(const Shape shape)
+            : Abstract_MCM_Transformer<T, U, Channels>(shape, shape) {}
     
     
-
-
     /**
      *  Return 0 if successful, -1 otherwise
      */
@@ -53,26 +50,31 @@ public:
 
         return transform_impl(in_mat, out);
     }
+};
+
+template<Has_Arithmetic T, Has_Arithmetic U, int Channels>
+class Abstract_Invertible_MCM_Transformer : public Abstract_MCM_Transformer<T, U, Channels> {
+private:
+    using Abstract_MCM_Transformer_t = Abstract_MCM_Transformer<T, U, Channels>;
+public:
+    //inherit constructors
+    using Abstract_MCM_Transformer_t::Abstract_MCM_Transformer_t;
+
+    // add inverse transform functions
+    virtual int inverse_impl(const Multichannel_Matrix<U, Channels, const_vector_t>& in, Multichannel_Matrix<T, Channels> out) = 0;
+
     template<Matrix_Like<U> M_U>
     int inverse(M_U& in, Multichannel_Matrix<T, Channels> out) {
         Multichannel_Matrix<U, Channels, const_vector_t> in_mat = Multichannel_Matrix<U, Channels, const_vector_t>::as_matrix(in);
 
         return inverse_impl(in_mat, out);
     }
-
-private:
-    // 
-
 };
 
 
 
-
-
-
-
 template<Has_Arithmetic T>
-class YCbCr_Transformer : public Abstract_Matrix_Transformer<T, T, 3> {
+class YCbCr_Transformer : public Abstract_Invertible_MCM_Transformer<T, T, 3> {
 public:
     static const int Channels = 3;
 private:
@@ -111,6 +113,6 @@ public:
 
 
 #include "ycbcr_transformer_impl.hpp"
-#include "bitdepth_transformer_impl.hpp"
+
 
 #endif

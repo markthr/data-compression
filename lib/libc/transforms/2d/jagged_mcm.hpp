@@ -3,9 +3,13 @@
 
 #include <array>
 #include <cassert>
+#include <concepts>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
+#include <ranges>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 
@@ -15,6 +19,19 @@
  * On the other hand, abbreviations are already used for FFT and DCT e.g. Discrete_Cosine_Transform_2 is very long
  */
 #include "2d_transforms.hpp"
+
+
+/**
+ * Concept used for Jagged matrix constructor
+ * 
+ * TODO: the iterator is copied, does input_range guarantee support for that?
+ */
+template<typename R, typename T, std::size_t Size>
+concept Input_Range_Of = requires(R r) {
+    std::ranges::input_range<R>;
+    std::is_same<std::ranges::range_value_t<R>, T>::value;
+    r.size() == Size; // TODO: is this actually enforcing compile time const size? Is enforcing that desirable?
+};
 
 /**
  * Idea:
@@ -34,8 +51,8 @@ private:
 public:
     std::span<T> data;
 
-    T& operator[] (int i) override {return (*this->data)[i];}
-    const T& operator[] (int i) const override {return (*this->data)[i];}
+    T& operator[] (int i) override {return this->data[i];}
+    const T& operator[] (int i) const override {return this->data[i];}
     using Abstract_MCM_t::index;
 
 /**
@@ -95,7 +112,25 @@ public:
     
 private:
     std::array<Matrix_View<T>, Channels> submatrices;
-    int size_;
+    int size_ = 0;
+
+    static std::array<Shape, Channels> shape_per_channel(Shape shape) {
+        std::array<Shape, Channels> shapes;
+        shapes.fill(shape);
+        return shapes;
+    }
+
+    template<Input_Range_Of<Shape, Channels> Shape_Range>
+    static int sum_shapes(Shape_Range shapes) {
+        // TODO: use something better than assert. Should strict equality be required for the check?
+        assert(shapes.size() >= Channels);
+        int size = 0;
+        for(auto shape: shapes) {
+            size += shape.size();
+        }
+        return size;
+    }
+
 public:
     Matrix_View<T> channel_view(int k) {
         if(k < Channels && k >= 0) {
@@ -113,30 +148,53 @@ public:
        return  this->submatrices[k].index(i, j);
     }
 
-    Jagged_Multichannel_Matrix(std::initializer_list<T> data, std::initializer_list<Shape> shapes)
-        : data(std::shared_ptr<std::vector<T>>(new std::vector<T>(data))) {
+/**
+ * Constructors and converters
+ */
+private:
+    /**
+     * Precondition: assumes size has been set
+     * 
+     * Input_It shapes: Iterator have a number of elements at least equal to Channels
+     * 
+     * TODO: should a check be added for the iterator ending here or just let bad code break?
+     */
+    template<Input_Range_Of<Shape, Channels> Shape_Range>
+    Jagged_Multichannel_Matrix(std::shared_ptr<std::vector<T>> data, Shape_Range shapes)
+        : data(data), size_(sum_shapes(shapes)) {
         
-            // TODO: find something better than assert
-        assert(shapes.size() == Channels);
-        
-        for(Shape shape: shapes) {
-            this->size_ += shape.size();
-        }
-
         // if initializer list was smaller than jagged matrix, extend with zeros
         if(this->data->size() <= this->size()) {
             this->data->resize(this->size());
         }
 
         auto left = this->data->begin();
-        auto shape_iter = shapes.begin();
+        auto shape_it = shapes.begin();
         for(int k = 0; k < Channels; k++) {
-            auto right = left + shape_iter->size();
-            this->submatrices[k] = Matrix_View<T>(std::span<T>(left, right), *shape_iter);
+            auto right = left + shape_it->size();
+            this->submatrices[k] = Matrix_View<T>(std::span<T>(left, right), *shape_it);
             left = right;
-            shape_iter++;
+            shape_it++;
         }
+    }
+public:
+    Jagged_Multichannel_Matrix(std::initializer_list<T> data, std::initializer_list<Shape> shapes)
+        : Jagged_Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(data)), shapes) {}
 
+
+    Jagged_Multichannel_Matrix(std::initializer_list<T> data, Shape shape)
+        : Jagged_Multichannel_Matrix(std::shared_ptr<std::vector<T>>(new std::vector<T>(data)), shape_per_channel(shape)) {}
+
+    Jagged_Multichannel_Matrix() {}
+
+    // TODO: need to add a constructor to support this function
+    template<Matrix_Like<T> M>
+    static Jagged_Multichannel_Matrix<T, Channels> as_jagged(M& m) {
+        
+        // TODO: Should a different guard be used instead of assert?
+        assert(m.shape().size() * Channels == m.size());
+
+        return Jagged_Multichannel_Matrix<T, Channels>(m.data, shape_per_channel(m.shape()));
     }
     
     int size() {return this->size_;}
